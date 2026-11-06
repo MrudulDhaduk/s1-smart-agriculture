@@ -1,0 +1,37 @@
+// sensor_store.proto - INTERNAL: only Partition Manager calls this (owner: Person 3).
+// Each Sensor Store node keeps the readings of the sensors the ring assigned to it.
+syntax = "proto3";
+
+package s1;
+
+import "reading.proto";
+
+service SensorStore {
+  rpc Put          (PutRequest)          returns (PutResponse);           // store one or more readings
+  rpc GetLatest    (StoreLatestRequest)  returns (StoreLatestResponse);
+  rpc GetHistory   (StoreHistoryRequest) returns (StoreHistoryResponse);
+
+  // Used only for rebalancing when a node joins or leaves:
+  rpc ListSensors  (ListSensorsRequest)  returns (ListSensorsResponse);  // which sensors do you hold?
+  rpc DeleteSensor (DeleteSensorRequest) returns (DeleteSensorResponse); // drop a sensor you no longer own
+}
+
+message PutRequest  { repeated Reading readings = 1; }
+message PutResponse { int32 stored = 1; }
+
+message StoreLatestRequest  { repeated string sensor_ids = 1; }
+message StoreLatestResponse { repeated Reading readings  = 1; }
+
+message StoreHistoryRequest {
+  string sensor_id = 1;
+  int64  from_ms   = 2;
+  int64  to_ms     = 3;
+  int32  limit     = 4;  // 0 = no limit (rebalancing copies everything)
+}
+message StoreHistoryResponse { repeated Reading readings = 1; }
+
+message ListSensorsRequest  {}
+message ListSensorsResponse { repeated string sensor_ids = 1; }
+
+message DeleteSensorRequest  { string sensor_id = 1; }
+message DeleteSensorResponse { int32 deleted = 1; }

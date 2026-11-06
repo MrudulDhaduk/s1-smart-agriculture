@@ -1,0 +1,50 @@
+// partition_manager.proto - what OTHER services call (owner: Person 3).
+// Callers never talk to Sensor Store directly; Partition Manager routes for them.
+syntax = "proto3";
+
+package s1;
+
+import "reading.proto";
+
+service PartitionManager {
+  // Telemetry Ingestion (P2): store one reading on its 3 replica nodes.
+  rpc WriteReading (WriteReadingRequest) returns (WriteReadingResponse);
+
+  // Irrigation Controller (P1): newest reading for each sensor asked for.
+  rpc GetLatest (GetLatestRequest) returns (GetLatestResponse);
+
+  // Anyone: readings of one sensor in a time range (newest first).
+  rpc GetHistory (GetHistoryRequest) returns (GetHistoryResponse);
+
+  // Admin / demo: change ring membership and trigger rebalancing.
+  rpc AddNode    (NodeRequest)     returns (RingState);
+  rpc RemoveNode (NodeRequest)     returns (RingState);
+  rpc GetRing    (GetRingRequest)  returns (RingState);
+}
+
+message WriteReadingRequest  { Reading reading = 1; }
+message WriteReadingResponse {
+  bool            ok    = 1;  // true if at least 2 of 3 replicas stored it
+  repeated string nodes = 2;  // which nodes it was sent to, primary first
+  int32           acks  = 3;  // how many nodes confirmed
+}
+
+message GetLatestRequest  { repeated string sensor_ids = 1; }
+message GetLatestResponse { repeated Reading readings  = 1; }  // sensors with no data are left out
+
+message GetHistoryRequest {
+  string sensor_id = 1;
+  int64  from_ms   = 2;  // inclusive; 0 = from the beginning
+  int64  to_ms     = 3;  // inclusive; 0 = up to now
+  int32  limit     = 4;  // max readings to return; 0 = 100
+}
+message GetHistoryResponse { repeated Reading readings = 1; }
+
+message NodeRequest    { string node = 1; }  // e.g. "store-4"
+message GetRingRequest {}
+message RingState {
+  int64           version  = 1;  // goes up by 1 on every membership change
+  repeated string nodes    = 2;  // e.g. ["store-0", "store-1", "store-2", "store-3"]
+  int32           vnodes   = 3;  // spots per node (100)
+  int32           replicas = 4;  // copies per reading (3)
+}

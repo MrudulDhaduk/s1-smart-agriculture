@@ -1,0 +1,13 @@
+// reading.proto - the ONE shape of a soil sensor reading, shared by every service.
+syntax = "proto3";
+
+package s1;
+
+message Reading {
+  string sensor_id     = 1;  // "farm7-plot2-s3". This is the partition key: hashed onto the ring.
+  string farm_id       = 2;  // "farm7"
+  string plot_id       = 3;  // "farm7-plot2"
+  double moisture_pct  = 4;  // soil moisture, 0 to 100
+  double temperature_c = 5;  // soil temperature in Celsius
+  int64  timestamp_ms  = 6;  // when the sensor measured it (Unix time in milliseconds)
+}
