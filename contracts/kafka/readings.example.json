@@ -1,0 +1,8 @@
+{
+  "sensor_id": "farm7-plot2-s3",
+  "farm_id": "farm7",
+  "plot_id": "farm7-plot2",
+  "moisture_pct": 23.4,
+  "temperature_c": 27.1,
+  "timestamp_ms": 1762480000000
+}
