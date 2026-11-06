@@ -1,0 +1,39 @@
+# --- Secrets: never commit these ---
+.env
+*.env
+*-key.json
+*credentials*.json
+service-account*.json
+*.pem
+kubeconfig*
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# --- Terraform ---
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log
+
+# --- Java / Flink builds ---
+target/
+*.class
+
+# --- Node ---
+node_modules/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Load test output ---
+loadtest/results/
