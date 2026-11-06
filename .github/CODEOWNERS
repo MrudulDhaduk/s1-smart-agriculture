@@ -1,0 +1,24 @@
+# CODEOWNERS: GitHub automatically asks the owner of a folder to review
+# any pull request that changes files in that folder.
+# TODO: replace @PERSON1 and @PERSON2 with your teammates' GitHub usernames.
+
+# Shared: everyone reviews
+/contracts/                         @MrudulDhaduk @PERSON1 @PERSON2
+
+# Person 1: Infrastructure & Storage
+/infra/                             @PERSON1
+/services/farm-registry/            @PERSON1
+/services/sensor-registry/          @PERSON1
+/services/irrigation-controller/    @PERSON1
+
+# Person 2: Events & Streaming
+/services/telemetry-ingestion/      @PERSON2
+/services/alert-function/           @PERSON2
+/services/farm-analytics/           @PERSON2
+/services/flink-job/                @PERSON2
+
+# Person 3: Concept, Scaling & Monitoring
+/services/partition-manager/        @MrudulDhaduk
+/services/sensor-store/             @MrudulDhaduk
+/observability/                     @MrudulDhaduk
+/loadtest/                          @MrudulDhaduk
