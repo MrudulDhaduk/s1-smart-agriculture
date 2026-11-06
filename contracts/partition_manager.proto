@@ -40,11 +40,11 @@ message GetHistoryRequest {
 }
 message GetHistoryResponse { repeated Reading readings = 1; }
 
-message NodeRequest    { string node = 1; }  // e.g. "store-4"
+message NodeRequest    { string node = 1; }  // e.g. "sensor-store-4"
 message GetRingRequest {}
 message RingState {
   int64           version  = 1;  // goes up by 1 on every membership change
-  repeated string nodes    = 2;  // e.g. ["store-0", "store-1", "store-2", "store-3"]
+  repeated string nodes    = 2;  // e.g. ["sensor-store-0", ..., "sensor-store-3"]
   int32           vnodes   = 3;  // spots per node (100)
   int32           replicas = 4;  // copies per reading (3)
 }
