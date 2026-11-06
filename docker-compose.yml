@@ -1,0 +1,59 @@
+# Run the whole system on your laptop:   docker compose up --build
+# Stop it:                                 docker compose down      (add -v to also wipe the data)
+#
+# Person 3 services so far. Teammates add theirs below.
+# 5 Sensor Store nodes run, but only 0-3 start on the ring; sensor-store-4 is
+# there so the demo can do:  python pmctl.py add-node sensor-store-4
+
+x-sensor-store: &sensor-store
+  build:
+    context: .
+    dockerfile: services/sensor-store/Dockerfile
+  image: s1/sensor-store
+
+services:
+  partition-manager:
+    build:
+      context: .
+      dockerfile: services/partition-manager/Dockerfile
+    image: s1/partition-manager
+    environment:
+      INITIAL_NODES: sensor-store-0,sensor-store-1,sensor-store-2,sensor-store-3
+      NODE_ADDRESS: "{node}:50052"
+      MEMBERSHIP_BACKEND: file
+      MEMBERSHIP_FILE: /ring/membership.json
+    volumes:
+      - ring:/ring
+    ports:
+      - "50051:50051"   # gRPC
+      - "8000:8000"     # metrics: http://localhost:8000/metrics
+    depends_on: [sensor-store-0, sensor-store-1, sensor-store-2, sensor-store-3, sensor-store-4]
+
+  sensor-store-0:
+    <<: *sensor-store
+    environment: { NODE_NAME: sensor-store-0 }
+    volumes: [ "store0:/data" ]
+  sensor-store-1:
+    <<: *sensor-store
+    environment: { NODE_NAME: sensor-store-1 }
+    volumes: [ "store1:/data" ]
+  sensor-store-2:
+    <<: *sensor-store
+    environment: { NODE_NAME: sensor-store-2 }
+    volumes: [ "store2:/data" ]
+  sensor-store-3:
+    <<: *sensor-store
+    environment: { NODE_NAME: sensor-store-3 }
+    volumes: [ "store3:/data" ]
+  sensor-store-4:
+    <<: *sensor-store
+    environment: { NODE_NAME: sensor-store-4 }
+    volumes: [ "store4:/data" ]
+
+volumes:
+  ring:
+  store0:
+  store1:
+  store2:
+  store3:
+  store4:
