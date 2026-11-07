@@ -141,6 +141,16 @@ Details that make it safe: a node must be **reachable** before it can be added; 
 
 Every step is **idempotent**: storing the same reading twice changes nothing (`INSERT OR REPLACE`), so any step can safely be repeated. `pmctl repair` builds on that. It compares what every node **holds** with what the ring says it **should** hold, copies whatever is missing and deletes whatever is extra. This is the same idea as Cassandra's anti-entropy `nodetool repair`, and it finishes a rebalance that was interrupted, for example by the HPA removing the pod that was running it. A dedicated test reproduces that case.
 
+**Tested under load.** Two router pods sharing one ring, k6 writing through both (about 320 writes per second), and a fifth node joining in the middle. Afterwards every sensor was checked on every node:
+
+| | Earlier version (no wait, catch-up only for already-known sensors) | Final version |
+|---|---|---|
+| Writes during the test, errors | 16,824, none | 15,919, none |
+| Sensors not on exactly their 3 ring owners afterwards | **1,260 of 4,834 (26%)** | **0** |
+| Sensors whose 3 copies hold different readings | **1,260** | **0** (every reading on all 3 copies) |
+
+The earlier version reported no errors at all, yet silently left a quarter of the sensors misplaced: routers still on the old ring kept writing to old owners, and sensors first seen during the move were never copied. Waiting until every router uses the new ring, then re-scanning, fixed both.
+
 **Measured on the laptop Kubernetes cluster** (5,000 sensors × 3 copies = 15,000 copies):
 
 | | node 0 | node 1 | node 2 | node 3 | node 4 | total |
