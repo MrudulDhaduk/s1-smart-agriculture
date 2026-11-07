@@ -5,6 +5,7 @@ pmctl.py - a small command-line remote control for the Partition Manager (for de
     python pmctl.py write 1000                    send 1000 fake readings (200 sensors)
     python pmctl.py latest farm1-plot1-s1         newest reading of a sensor
     python pmctl.py where farm1-plot1-s1          which nodes hold this sensor
+    python pmctl.py stats                         how many sensors each node holds
     python pmctl.py add-node sensor-store-4       join a node and rebalance
     python pmctl.py remove-node sensor-store-2    remove a node and rebalance
 
@@ -24,6 +25,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "gen
 import partition_manager_pb2 as pm  # noqa: E402
 import partition_manager_pb2_grpc as pm_grpc  # noqa: E402
 import reading_pb2  # noqa: E402
+import sensor_store_pb2 as ss  # noqa: E402
+import sensor_store_pb2_grpc as ss_grpc  # noqa: E402
 from ring import HashRing  # noqa: E402
 
 SENSORS = [f"farm{f}-plot{p}-s{s}" for f in range(1, 6) for p in range(1, 5) for s in range(1, 11)]  # 200
@@ -46,7 +49,7 @@ def show_ring(r):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--addr", default="localhost:50051")
-    p.add_argument("command", choices=["ring", "write", "latest", "where", "add-node", "remove-node"])
+    p.add_argument("command", choices=["ring", "write", "latest", "where", "stats", "add-node", "remove-node"])
     p.add_argument("arg", nargs="?")
     a = p.parse_args()
     stub = pm_grpc.PartitionManagerStub(grpc.insecure_channel(a.addr))
@@ -69,6 +72,18 @@ def main():
         for n in state.nodes:
             ring.add_node(n)
         print(f"{a.arg} -> {ring.get_nodes(a.arg)} (primary first)")
+    elif a.command == "stats":
+        # Ask every node on the ring directly: "how many sensors do you hold?"
+        state = stub.GetRing(pm.GetRingRequest())
+        address = os.environ.get("NODE_ADDRESS", "{node}:50052")
+        print(f"ring version {state.version}")
+        for n in state.nodes:
+            try:
+                node = ss_grpc.SensorStoreStub(grpc.insecure_channel(address.format(node=n)))
+                count = len(node.ListSensors(ss.ListSensorsRequest(), timeout=2).sensor_ids)
+                print(f"  {n}: {count:4} sensors  " + "#" * (count // 5))
+            except grpc.RpcError:
+                print(f"  {n}: DOWN")
     elif a.command == "add-node":
         show_ring(stub.AddNode(pm.NodeRequest(node=a.arg), timeout=300))
     elif a.command == "remove-node":
