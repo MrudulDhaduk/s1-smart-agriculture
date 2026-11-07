@@ -119,7 +119,8 @@ sequenceDiagram
     PM-->>TI: ok = true (2 of 3 confirmed: majority)
 ```
 
-- **Writes** go to all 3 replicas in parallel and succeed when a **majority (2 of 3)** confirm, so one slow or dead node never blocks writes.
+- **Writes** go to all 3 replicas in parallel. The Partition Manager replies as soon as a **majority (2 of 3)** confirm, so one slow or dead node never delays or blocks a write. The third copy keeps writing in the background and is still counted in the metrics when it finishes.
+- **Consistency:** writes need W = 2 acknowledgements and reads ask R = 1 replica. Because R + W = N rather than R + W > N, a read can briefly return an older reading (for example from a replica that has not received the newest write yet). The system is **eventually consistent**, which is acceptable for soil moisture sampled every few seconds.
 - **Reads** go to the primary. If it does not answer, the Partition Manager retries on the next replica. The caller never notices.
 - **Router, not lookup.** Callers only ever talk to the Partition Manager, so the partitioning logic lives in one service instead of being re-implemented inside every caller.
 

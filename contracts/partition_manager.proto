@@ -26,7 +26,7 @@ message WriteReadingRequest  { Reading reading = 1; }
 message WriteReadingResponse {
   bool            ok    = 1;  // true if at least 2 of 3 replicas stored it
   repeated string nodes = 2;  // which nodes it was sent to, primary first
-  int32           acks  = 3;  // how many nodes confirmed
+  int32           acks  = 3;  // how many nodes confirmed BEFORE the reply (2 when ok; a 3rd may finish later)
 }
 
 message GetLatestRequest  { repeated string sensor_ids = 1; }
