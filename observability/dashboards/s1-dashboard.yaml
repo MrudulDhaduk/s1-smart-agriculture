@@ -404,7 +404,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(pm_rebalance_events_total) or vector(0)",
+              "expr": "max_over_time((sum(pm_rebalance_events_total) or vector(0))[$__range:])",
               "legendFormat": "rebalance events"
             },
             {
@@ -413,7 +413,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(pm_rebalance_sensors_moved_total)",
+              "expr": "max_over_time((sum(pm_rebalance_sensors_moved_total) or vector(0))[$__range:])",
               "legendFormat": "sensors moved"
             }
           ],
