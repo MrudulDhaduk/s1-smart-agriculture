@@ -72,6 +72,7 @@ class PartitionManager(pm_grpc.PartitionManagerServicer):
         self.node_address = node_address
         self.address_overrides = address_overrides or {}  # only used by tests
         self.vnodes, self.replicas = vnodes, replicas
+        self.refresh_seconds = refresh_seconds
         self.stubs = {}
         self.admin_lock = threading.Lock()  # one membership change at a time
         self.pool = futures.ThreadPoolExecutor(max_workers=32)
@@ -230,11 +231,12 @@ class PartitionManager(pm_grpc.PartitionManagerServicer):
             old_ring, new_ring = self.build_ring(nodes), self.build_ring(new_nodes)
 
             start = time.time()
-            moves = self._copy_moved_sensors(old_ring, new_ring)       # 1. copy data to new owners
-            self.membership.save(version + 1, new_nodes)               # 2. switch everyone to the new ring
+            moves = self._copy_moved_sensors(old_ring, new_ring)       # 1. copy data to the new owners
+            self.membership.save(version + 1, new_nodes)               # 2. switch to the new ring...
             self.refresh()
-            self._copy_moved_sensors(old_ring, new_ring, only=moves)   # 3. catch-up copy (writes during step 1)
-            self._delete_old_copies(old_ring, new_ring, moves)         # 4. remove copies nobody owns now
+            time.sleep(self.refresh_seconds + 1)                       #    ...and wait until EVERY router pod has it
+            self._copy_moved_sensors(old_ring, new_ring, only=moves)   # 3. catch-up: copy readings written via the old ring
+            self._delete_old_copies(old_ring, new_ring, moves)         # 4. only now remove copies nobody owns
 
             seconds = time.time() - start
             REBALANCES.labels("add" if add else "remove").inc()
