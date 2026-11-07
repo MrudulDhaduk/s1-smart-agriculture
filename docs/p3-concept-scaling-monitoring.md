@@ -119,8 +119,8 @@ sequenceDiagram
     PM-->>TI: ok = true (2 of 3 confirmed: majority)
 ```
 
-- **Writes** go to all 3 replicas in parallel. The Partition Manager replies as soon as a **majority (2 of 3)** confirm, so one slow or dead node never delays or blocks a write. The third copy keeps writing in the background and is still counted in the metrics when it finishes.
-- **Consistency:** writes need W = 2 acknowledgements and reads ask R = 1 replica. Because R + W = N rather than R + W > N, a read can briefly return an older reading (for example from a replica that has not received the newest write yet). The system is **eventually consistent**, which is acceptable for soil moisture sampled every few seconds.
+- **Writes** go to all 3 replicas in parallel. The Partition Manager replies once a **majority (2 of 3)** has confirmed **and the primary has answered**. A slow non-primary replica is not waited for; it finishes in the background and is still counted in the metrics. If the primary fails, any majority is enough.
+- **Consistency (tunable, like Cassandra):** W = 2 with the primary required, R = 1 (reads ask the primary). In the normal case this gives **read-your-writes**: a read after "ok" always sees the reading. Full strong consistency would need R + W > N, for example quorum reads (R = 2, newest timestamp wins). We chose not to pay for that: soil moisture changes over minutes, and analytics are computed by Flink from the Kafka stream. Remaining edge case: if the primary is alive but its write times out, a read can briefly return the previous reading, and that one reading is missing from the primary's history.
 - **Reads** go to the primary. If it does not answer, the Partition Manager retries on the next replica. The caller never notices.
 - **Router, not lookup.** Callers only ever talk to the Partition Manager, so the partitioning logic lives in one service instead of being re-implemented inside every caller.
 
