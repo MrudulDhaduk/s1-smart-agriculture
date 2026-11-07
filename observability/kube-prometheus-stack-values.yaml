@@ -1,0 +1,41 @@
+# Settings for kube-prometheus-stack (Prometheus + Grafana + collectors), task (h).
+#
+#   helm install monitoring prometheus-community/kube-prometheus-stack --version 92.14.1 \
+#     -n monitoring --create-namespace -f observability/kube-prometheus-stack-values.yaml
+#
+# LAPTOP settings (Docker Desktop). For GKE, do NOT expose Grafana with a LoadBalancer and
+# admin/admin: switch the two services to ClusterIP and use `kubectl port-forward` instead.
+
+alertmanager:
+  enabled: false            # alert routing is not needed for the demo; saves RAM and download time
+
+# Control-plane parts that Docker Desktop and GKE (managed control plane) don't let us scrape.
+# Left on, they would show up as permanently "down" targets.
+kubeEtcd: { enabled: false }
+kubeControllerManager: { enabled: false }
+kubeScheduler: { enabled: false }
+kubeProxy: { enabled: false }
+
+prometheus-node-exporter:
+  hostRootFsMount:
+    enabled: false          # Docker Desktop can't share the host's root filesystem mount
+
+prometheus:
+  service:
+    type: LoadBalancer      # laptop: Prometheus UI at http://localhost:9090
+  prometheusSpec:
+    scrapeInterval: 15s     # read every /metrics endpoint every 15 seconds
+    retention: 2d
+    # By default Prometheus only reads ServiceMonitors made by this chart.
+    # false = also read OUR ServiceMonitors (observability/servicemonitors.yaml).
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    resources:
+      requests: { cpu: 100m, memory: 400Mi }
+
+grafana:
+  adminPassword: admin      # laptop only
+  service:
+    type: LoadBalancer      # laptop: Grafana at http://localhost:3000
+    port: 3000
+  defaultDashboardsTimezone: browser
