@@ -42,7 +42,9 @@ ROWS = [
             ('max(kube_horizontalpodautoscaler_spec_max_replicas{namespace="s1", horizontalpodautoscaler="partition-manager"})', "max allowed"),
         ]),
         ("timeseries", "CPU per Partition Manager pod (millicores; HPA target = 50m)", "short", 12, [
-            ('1000 * sum by (pod) (rate(container_cpu_usage_seconds_total{namespace="s1", container="partition-manager"}[1m]))', "{{pod}}"),
+            # process_cpu_seconds_total comes from our own /metrics (prometheus_client), so it works
+            # on Docker Desktop and GKE alike. 1 container = 1 Python process, so it equals pod CPU.
+            ('1000 * sum by (pod) (rate(process_cpu_seconds_total{namespace="s1", job="partition-manager"}[1m]))', "{{pod}}"),
         ]),
     ]),
     ("Partitioning: the consistent hashing ring", [
@@ -55,7 +57,7 @@ ROWS = [
         ("stat", "Ring", "short", 8, [
             ('max(pm_ring_version)', "ring version"),
             ('max(pm_ring_nodes)', "ring nodes"),
-            ('sum(pm_rebalance_events_total)', "rebalance events"),
+            ('sum(pm_rebalance_events_total) or vector(0)', "rebalance events"),
             ('sum(pm_rebalance_sensors_moved_total)', "sensors moved"),
         ]),
     ]),
@@ -79,7 +81,7 @@ def panel(pid, kind, title, unit, width, x, y, queries):
     p = {
         "id": pid, "type": kind, "title": title, "datasource": DS,
         "gridPos": {"x": x, "y": y, "w": width, "h": 8},
-        "fieldConfig": {"defaults": {"unit": unit}, "overrides": []},
+        "fieldConfig": {"defaults": {"unit": unit, "min": 0}, "overrides": []},  # bars and axes start at 0
         "targets": [{"refId": chr(65 + i), "datasource": DS, "expr": q, "legendFormat": legend}
                     for i, (q, legend) in enumerate(queries)],
     }
