@@ -12,6 +12,7 @@ Two places it can live (chosen with MEMBERSHIP_BACKEND):
 import json
 import os
 import threading
+import uuid
 
 
 class FileMembership:
@@ -27,7 +28,7 @@ class FileMembership:
         return data["version"], data["nodes"]
 
     def save(self, version, nodes):
-        tmp = self.path + ".tmp"
+        tmp = f"{self.path}.{uuid.uuid4().hex}.tmp"  # unique name: two pods may save at the same moment
         with self.lock:
             with open(tmp, "w") as f:
                 json.dump({"version": version, "nodes": nodes}, f)
