@@ -45,7 +45,7 @@ def cluster(tmp_path):
     client = pm_grpc.PartitionManagerStub(grpc.insecure_channel(f"localhost:{port}"))
     for s in SENSORS:
         assert client.WriteReading(pm.WriteReadingRequest(reading=pmctl.fake_reading(s))).ok
-    yield client, manager, stores
+    yield client, manager, stores, addresses
     pm_server.stop(0)
     for s in stores.values():
         s.stop(0)
@@ -64,14 +64,14 @@ def all_readable(client):
 
 
 def test_every_reading_is_stored_on_three_nodes(cluster):
-    client, manager, _ = cluster
+    client, manager, *_ = cluster
     counts = copies_per_sensor(manager, NODES)
     assert all(counts[s] == 3 for s in SENSORS)
     assert all_readable(client)
 
 
 def test_reads_and_writes_survive_a_crashed_node(cluster):
-    client, _, stores = cluster
+    client, _, stores, _ = cluster
     stores["sensor-store-1"].stop(0)  # crash
     assert all_readable(client)
     replies = [client.WriteReading(pm.WriteReadingRequest(reading=pmctl.fake_reading(s))) for s in SENSORS]
@@ -79,7 +79,7 @@ def test_reads_and_writes_survive_a_crashed_node(cluster):
 
 
 def test_add_node_rebalances_without_losing_data(cluster):
-    client, manager, _ = cluster
+    client, manager, *_ = cluster
     state = client.AddNode(pm.NodeRequest(node="sensor-store-4"))
     assert state.version == 2 and "sensor-store-4" in state.nodes
 
@@ -91,11 +91,33 @@ def test_add_node_rebalances_without_losing_data(cluster):
 
 
 def test_remove_dead_node_restores_three_copies(cluster):
-    client, manager, stores = cluster
+    client, manager, stores, _ = cluster
     stores["sensor-store-1"].stop(0)  # node dies...
     client.RemoveNode(pm.NodeRequest(node="sensor-store-1"))  # ...and is taken off the ring
 
     alive = ["sensor-store-0", "sensor-store-2", "sensor-store-3"]
     counts = copies_per_sensor(manager, alive)
     assert all(counts[s] == 3 for s in SENSORS)  # every sensor re-copied onto the 3 survivors
+    assert all_readable(client)
+
+
+def test_repair_finishes_an_interrupted_rebalance(cluster):
+    # What happened on Docker Desktop: the pod doing AddNode was killed (HPA scale-in) after
+    # copying data and switching the ring, but BEFORE deleting the old copies.
+    client, manager, _, addresses = cluster
+    old_ring = manager.build_ring(NODES[:4])
+    new_ring = manager.build_ring(NODES)
+    manager._copy_moved_sensors(old_ring, new_ring)      # step 1 done
+    manager.membership.save(2, NODES)                     # step 2 done
+    manager.refresh()                                     # ...pod killed here: no delete step
+    assert sum(copies_per_sensor(manager, NODES).values()) > 3 * len(SENSORS)  # extra copies left
+
+    pmctl.repair(client, address_of=addresses.get)
+
+    counts = copies_per_sensor(manager, NODES)
+    assert all(counts[s] == 3 for s in SENSORS)          # exactly 3 copies again
+    for s in SENSORS:                                     # ...and on exactly the right nodes
+        for n in NODES:
+            holds = s in manager.stub(n).ListSensors(ss.ListSensorsRequest()).sensor_ids
+            assert holds == (n in new_ring.get_nodes(s))
     assert all_readable(client)
