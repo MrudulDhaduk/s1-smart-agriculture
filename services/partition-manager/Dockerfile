@@ -4,7 +4,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 COPY services/partition-manager/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Slow or flaky internet? The cache mount keeps already-downloaded packages between
+# builds (and shares them between our images), and pip waits longer and retries.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --default-timeout=120 --retries 10 -r requirements.txt
 
 # Turn the shared .proto contracts into Python code inside the image
 COPY contracts ./contracts
