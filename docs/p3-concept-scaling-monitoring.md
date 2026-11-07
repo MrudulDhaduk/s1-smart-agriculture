@@ -149,6 +149,8 @@ Every step is **idempotent**: storing the same reading twice changes nothing (`I
 | Sensors not on exactly their 3 ring owners afterwards | **1,260 of 4,834 (26%)** | **0** |
 | Sensors whose 3 copies hold different readings | **1,260** | **0** (every reading on all 3 copies) |
 
+**A node crashing under load, then being removed** (same setup, 5 nodes, one killed without warning mid-test, then `remove-node`): 33,916 writes, **0 failed** (majority writes kept working with one replica dead); afterwards **0** sensors misplaced and **0** with differing copies, with all 3 copies rebuilt on the 4 survivors.
+
 The earlier version reported no errors at all, yet silently left a quarter of the sensors misplaced: routers still on the old ring kept writing to old owners, and sensors first seen during the move were never copied. Waiting until every router uses the new ring, then re-scanning, fixed both.
 
 **Measured on the laptop Kubernetes cluster** (5,000 sensors × 3 copies = 15,000 copies):
