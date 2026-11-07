@@ -45,9 +45,19 @@ import sensor_store_pb2 as ss  # noqa: E402
 import sensor_store_pb2_grpc as ss_grpc  # noqa: E402
 
 import membership as membership_lib  # noqa: E402
+import transfer  # noqa: E402
 from ring import HashRing  # noqa: E402
 
 TIMEOUT = 2.0  # seconds to wait for one Sensor Store call
+
+# How our connections to Sensor Store nodes behave after a node restarts. gRPC's defaults can
+# keep treating a restarted node as "down" for up to 2 minutes (reconnect back-off) and keep
+# using its old IP address for 30 s (DNS caching). A restarted pod gets a new IP.
+CHANNEL_OPTIONS = [
+    ("grpc.initial_reconnect_backoff_ms", 500),
+    ("grpc.max_reconnect_backoff_ms", 5000),             # try again at least every 5 s
+    ("grpc.dns_min_time_between_resolutions_ms", 1000),  # look up the new IP within 1 s
+]
 
 # ---------- metrics (Prometheus scrapes these from :8000/metrics) ----------
 REQUESTS = Counter("pm_requests_total", "gRPC requests handled", ["method", "status"])
@@ -80,7 +90,7 @@ class PartitionManager(pm_grpc.PartitionManagerServicer):
         self.refresh_seconds = refresh_seconds
         self.stubs = {}
         self.admin_lock = threading.Lock()  # one membership change at a time
-        self.pool = futures.ThreadPoolExecutor(max_workers=32)
+        self.pool = futures.ThreadPoolExecutor(max_workers=96)  # 32 requests at once x 3 replicas each
         self.version, self.ring = 0, HashRing(vnodes, replicas)
         self.refresh()
         threading.Thread(target=self._refresh_loop, args=(refresh_seconds,), daemon=True).start()
@@ -113,7 +123,7 @@ class PartitionManager(pm_grpc.PartitionManagerServicer):
     def stub(self, node):
         if node not in self.stubs:
             address = self.address_overrides.get(node) or self.node_address.format(node=node)
-            self.stubs[node] = ss_grpc.SensorStoreStub(grpc.insecure_channel(address))
+            self.stubs[node] = ss_grpc.SensorStoreStub(grpc.insecure_channel(address, options=CHANNEL_OPTIONS))
         return self.stubs[node]
 
     def ring_state(self):
@@ -241,22 +251,33 @@ class PartitionManager(pm_grpc.PartitionManagerServicer):
         return self._observe("GetRing", self.ring_state, context)
 
     def _change(self, node, add):
+        if not node:
+            raise InvalidRequest("node name is required")
         with self.admin_lock:
             version, nodes = self.membership.load()
             if (node in nodes) == add:  # already there / already gone: nothing to do
                 return self.ring_state()
+            if add:  # refuse a node we cannot reach (typo, or pod not started yet)
+                try:
+                    self.stub(node).ListSensors(ss.ListSensorsRequest(), timeout=TIMEOUT)
+                except grpc.RpcError:
+                    raise InvalidRequest(f"{node} is not reachable; start it before adding it to the ring")
             new_nodes = nodes + [node] if add else [n for n in nodes if n != node]
+            if not new_nodes:
+                raise InvalidRequest("cannot remove the last node")
             old_ring, new_ring = self.build_ring(nodes), self.build_ring(new_nodes)
 
             start = time.time()
-            moves = self._copy_moved_sensors(old_ring, new_ring)       # 1. copy data to the new owners
-            self.membership.save(version + 1, new_nodes)               # 2. switch to the new ring...
+            moves = self._copy_moved_sensors(old_ring, new_ring)        # 1. copy data to the new owners
+            self.membership.save(version + 1, new_nodes)                # 2. switch to the new ring...
             self.refresh()
-            time.sleep(self.refresh_seconds + 1)                       #    ...and wait until EVERY router pod has it
-            self._copy_moved_sensors(old_ring, new_ring, only=moves)   # 3. catch-up: copy readings written via the old ring
-            self._delete_old_copies(old_ring, new_ring, moves)         # 4. only now remove copies nobody owns
+            time.sleep(self.refresh_seconds + 1)                        #    ...and wait until EVERY router pod has it
+            moves.update(self._copy_moved_sensors(old_ring, new_ring))  # 3. catch-up: full re-scan, so readings AND
+                                                                        #    brand-new sensors written via the old ring move too
+            self._delete_old_copies(old_ring, new_ring, moves)          # 4. only now remove copies nobody owns
 
             seconds = time.time() - start
+            MOVED.inc(len(moves))
             REBALANCES.labels("add" if add else "remove").inc()
             REBALANCE_SECONDS.set(seconds)
             log("INFO", "rebalance finished", change="add" if add else "remove", node=node,
@@ -272,30 +293,17 @@ class PartitionManager(pm_grpc.PartitionManagerServicer):
                 log("WARNING", "could not list sensors (node down?)", node=n, error=str(e))
         return sensors
 
-    def _copy_moved_sensors(self, old_ring, new_ring, only=None):
+    def _copy_moved_sensors(self, old_ring, new_ring):
         """For every sensor whose owner list changed, copy its readings to the new owners."""
         moves = {}
-        for sensor in (only if only is not None else self._all_sensors(old_ring)):
+        for sensor in self._all_sensors(old_ring):
             old, new = old_ring.get_nodes(sensor), new_ring.get_nodes(sensor)
             gained = [n for n in new if n not in old]
-            if not gained:
-                continue
-            readings = self._read_all(sensor, old)
-            for n in gained:
-                self.stub(n).Put(ss.PutRequest(readings=readings), timeout=TIMEOUT * 5)
-            moves[sensor] = (old, new)
-            if only is None:
-                MOVED.inc()
+            if gained:
+                # in batches, from the first old owner that is alive AND has the data
+                transfer.copy_history(self.stub, sensor, sources=old, targets=gained, timeout=TIMEOUT * 5)
+                moves[sensor] = (old, new)
         return moves
-
-    def _read_all(self, sensor, owners):
-        for n in owners:  # any live old owner has the full history
-            try:
-                return self.stub(n).GetHistory(ss.StoreHistoryRequest(sensor_id=sensor, limit=0),
-                                               timeout=TIMEOUT * 5).readings
-            except Exception:
-                continue
-        return []
 
     def _delete_old_copies(self, old_ring, new_ring, moves):
         for sensor, (old, new) in moves.items():

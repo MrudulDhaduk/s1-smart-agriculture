@@ -28,6 +28,7 @@ import partition_manager_pb2_grpc as pm_grpc  # noqa: E402
 import reading_pb2  # noqa: E402
 import sensor_store_pb2 as ss  # noqa: E402
 import sensor_store_pb2_grpc as ss_grpc  # noqa: E402
+import transfer  # noqa: E402
 from ring import HashRing  # noqa: E402
 
 SENSORS = [f"farm{f}-plot{p}-s{s}" for f in range(1, 6) for p in range(1, 5) for s in range(1, 11)]  # 200
@@ -73,11 +74,8 @@ def repair(stub, address_of=None):
         holders = [n for n in held if sensor in held[n]]
         missing = [n for n in owners if n in held and sensor not in held[n]]
         if missing:
-            readings = nodes[holders[0]].GetHistory(
-                ss.StoreHistoryRequest(sensor_id=sensor, limit=0), timeout=30).readings
-            for n in missing:
-                nodes[n].Put(ss.PutRequest(readings=readings), timeout=30)
-                copied += 1
+            transfer.copy_history(nodes.get, sensor, sources=holders, targets=missing, timeout=30)
+            copied += len(missing)
         if all(o in held for o in owners):  # only clean up when every owner is alive and has a copy
             for n in holders:
                 if n not in owners:
@@ -103,7 +101,10 @@ def main():
             ok += reply.ok
         print(f"{ok} of {n} writes succeeded (majority of replicas confirmed)")
     elif a.command == "latest":
-        for r in stub.GetLatest(pm.GetLatestRequest(sensor_ids=[a.arg])).readings:
+        readings = stub.GetLatest(pm.GetLatestRequest(sensor_ids=[a.arg])).readings
+        if not readings:
+            print(f"{a.arg}: no readings stored")
+        for r in readings:
             print(f"{r.sensor_id}: moisture {r.moisture_pct}%  temp {r.temperature_c}C  at {r.timestamp_ms}")
     elif a.command == "where":
         # Same ring, same MD5 -> the same answer the Partition Manager computes. Nothing is written.
@@ -127,9 +128,9 @@ def main():
     elif a.command == "repair":
         repair(stub)
     elif a.command == "add-node":
-        show_ring(stub.AddNode(pm.NodeRequest(node=a.arg), timeout=300))
+        show_ring(stub.AddNode(pm.NodeRequest(node=a.arg), timeout=1800))
     elif a.command == "remove-node":
-        show_ring(stub.RemoveNode(pm.NodeRequest(node=a.arg), timeout=300))
+        show_ring(stub.RemoveNode(pm.NodeRequest(node=a.arg), timeout=1800))
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ x-sensor-store: &sensor-store
     context: .
     dockerfile: services/sensor-store/Dockerfile
   image: s1/sensor-store
+  restart: unless-stopped   # restart after a crash, but not after `docker compose stop`
 
 services:
   partition-manager:
@@ -17,6 +18,7 @@ services:
       context: .
       dockerfile: services/partition-manager/Dockerfile
     image: s1/partition-manager
+    restart: unless-stopped
     environment:
       INITIAL_NODES: sensor-store-0,sensor-store-1,sensor-store-2,sensor-store-3
       NODE_ADDRESS: "{node}:50052"

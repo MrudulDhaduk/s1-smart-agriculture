@@ -204,3 +204,65 @@ def test_bad_input_is_invalid_argument_not_a_server_error(cluster):
             assert False, "should have been rejected"
         except grpc.RpcError as e:
             assert e.code() == grpc.StatusCode.INVALID_ARGUMENT
+
+
+def sensor_gaining(manager, new_node):
+    old, new = manager.build_ring(NODES[:4]), manager.build_ring(NODES)
+    return next(s for s in SENSORS if new_node in new.get_nodes(s) and new_node not in old.get_nodes(s))
+
+
+def history_count(manager, node, sensor):
+    return len(manager.stub(node).GetHistory(ss.StoreHistoryRequest(sensor_id=sensor, limit=0)).readings)
+
+
+def test_rebalance_copies_long_histories_in_batches(cluster, monkeypatch):
+    import transfer
+    monkeypatch.setattr(transfer, "BATCH", 50)            # tiny batches, so 120 readings need 3 pages
+    client, manager, *_ = cluster
+    sensor = sensor_gaining(manager, "sensor-store-4")
+    for i in range(120):
+        r = pmctl.fake_reading(sensor)
+        r.timestamp_ms = 1_000_000 + i                     # 120 different moments
+        assert client.WriteReading(pm.WriteReadingRequest(reading=r)).ok
+    total = history_count(manager, manager.ring.get_nodes(sensor)[0], sensor)
+
+    client.AddNode(pm.NodeRequest(node="sensor-store-4"))
+    assert history_count(manager, "sensor-store-4", sensor) == total   # every page arrived
+
+
+def test_rebalance_skips_a_source_that_is_alive_but_empty(cluster):
+    client, manager, *_ = cluster
+    sensor = sensor_gaining(manager, "sensor-store-4")
+    first_source = manager.build_ring(NODES[:4]).get_nodes(sensor)[0]
+    manager.stub(first_source).DeleteSensor(ss.DeleteSensorRequest(sensor_id=sensor))
+
+    client.AddNode(pm.NodeRequest(node="sensor-store-4"))
+    assert history_count(manager, "sensor-store-4", sensor) >= 1       # copied from the next old owner
+
+
+def test_unreachable_node_is_refused_and_ring_unchanged(cluster):
+    client, *_ = cluster
+    try:
+        client.AddNode(pm.NodeRequest(node="sensor-store-9"))           # no such node
+        assert False, "should have been refused"
+    except grpc.RpcError as e:
+        assert e.code() == grpc.StatusCode.INVALID_ARGUMENT
+    assert client.GetRing(pm.GetRingRequest()).version == 1
+
+
+def test_restarted_node_is_used_again_within_seconds(cluster, tmp_path):
+    client, manager, stores, addresses = cluster
+    stores["sensor-store-1"].stop(0)                                     # node goes down...
+    sensor = next(s for s in SENSORS if "sensor-store-1" in manager.ring.get_nodes(s))
+    for _ in range(3):
+        client.WriteReading(pm.WriteReadingRequest(reading=pmctl.fake_reading(sensor)))
+
+    port = int(addresses["sensor-store-1"].split(":")[1])                # ...and comes back on the same address
+    stores["sensor-store-1"], _ = store_server.serve("sensor-store-1", str(tmp_path / "sensor-store-1"), port)
+    deadline = time.time() + 8
+    while time.time() < deadline:
+        if client.WriteReading(pm.WriteReadingRequest(reading=pmctl.fake_reading(sensor))).acks == 3:
+            break
+        time.sleep(0.5)
+    else:
+        assert False, "restarted node was not used again within 8 s"

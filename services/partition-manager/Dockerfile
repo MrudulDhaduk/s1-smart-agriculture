@@ -15,7 +15,8 @@ COPY tools/gen_protos.py ./tools/gen_protos.py
 RUN python tools/gen_protos.py gen
 
 COPY services/partition-manager/ring.py services/partition-manager/membership.py \
-     services/partition-manager/server.py services/partition-manager/pmctl.py ./
+     services/partition-manager/transfer.py services/partition-manager/server.py \
+     services/partition-manager/pmctl.py ./
 
 ENV GRPC_PORT=50051 METRICS_PORT=8000 PYTHONUNBUFFERED=1
 EXPOSE 50051 8000

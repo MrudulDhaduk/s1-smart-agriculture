@@ -16,6 +16,8 @@ spec:
     metadata:
       labels: { app: partition-manager }
     spec:
+      serviceAccountName: partition-manager   # GKE: grant this identity Firestore access (Workload Identity)
+      terminationGracePeriodSeconds: 30
       containers:
         - name: partition-manager
           image: s1/partition-manager:latest
@@ -32,6 +34,11 @@ spec:
           readinessProbe:
             tcpSocket: { port: 50051 }
             periodSeconds: 5
+          lifecycle:
+            # On shutdown (e.g. HPA scale-in), wait 5 s so Kubernetes stops sending new traffic
+            # here first; then SIGTERM lets in-flight requests finish (graceful shutdown).
+            preStop:
+              exec: { command: ["sleep", "5"] }
           resources:
             # HPA measures CPU as a % of this request: 50% target = 50m (0.05 of a CPU core)
             requests: { cpu: 100m, memory: 128Mi }

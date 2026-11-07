@@ -23,6 +23,8 @@ Decided 7 Nov 2026. Each decision has a one-line reason (the viva answer).
   `dataproc:dataproc.logging.stackdriver.job.driver.enable=true` and
   `dataproc:dataproc.logging.stackdriver.job.yarn.container.enable=true` (both default to false).
 - Create the Firestore database (ring membership lives in it).
+- Give the Kubernetes service account `s1/partition-manager` read/write access to Firestore (Workload Identity, role `roles/datastore.user`).
+- Push our images to Artifact Registry; `k8s/base` currently uses the local names `s1/partition-manager` and `s1/sensor-store`.
 
 **Person 2**
 - Telemetry Ingestion's Deployment must set `resources.requests.cpu` (HPA measures CPU % relative to it).

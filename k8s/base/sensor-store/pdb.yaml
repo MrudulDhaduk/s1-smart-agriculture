@@ -1,0 +1,12 @@
+# PodDisruptionBudget: during PLANNED maintenance (GKE node upgrades, drains), Kubernetes may take
+# down at most 1 ring node at a time. Every sensor has 3 copies and writes need 2, so losing one
+# node at a time never blocks writes; losing two at once could.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sensor-store
+  namespace: s1
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels: { app: sensor-store }

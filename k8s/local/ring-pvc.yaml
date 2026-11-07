@@ -1,0 +1,12 @@
+# Laptop only: a small persistent disk for the ring membership file, shared by the
+# Partition Manager pods (they all run on the one Docker Desktop machine). It survives
+# restarts, unlike a temporary folder. On GKE the membership lives in Firestore instead.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ring-membership
+  namespace: s1
+spec:
+  accessModes: [ReadWriteOnce]   # "one machine" - fine, every pod is on the same machine
+  resources:
+    requests: { storage: 10Mi }

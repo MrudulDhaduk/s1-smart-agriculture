@@ -1,0 +1,10 @@
+# During planned maintenance, keep at least one router pod serving at all times.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: partition-manager
+  namespace: s1
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels: { app: partition-manager }

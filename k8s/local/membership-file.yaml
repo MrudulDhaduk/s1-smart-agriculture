@@ -1,5 +1,5 @@
-# Laptop only: keep ring membership in a file on the (single) Docker Desktop machine,
-# shared by all Partition Manager pods through a hostPath folder. On GKE: Firestore.
+# Laptop only: keep ring membership in a file on a small persistent disk (ring-pvc.yaml),
+# shared by all Partition Manager pods. On GKE: Firestore.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,4 +17,4 @@ spec:
             - { name: ring, mountPath: /ring }
       volumes:
         - name: ring
-          hostPath: { path: /tmp/s1-ring, type: DirectoryOrCreate }
+          persistentVolumeClaim: { claimName: ring-membership }
