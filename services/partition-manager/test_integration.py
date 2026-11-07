@@ -9,6 +9,7 @@ adding/removing a node rebalances the data without losing any.
 """
 
 import importlib.util
+import time
 import os
 from collections import Counter
 
@@ -121,3 +122,41 @@ def test_repair_finishes_an_interrupted_rebalance(cluster):
             holds = s in manager.stub(n).ListSensors(ss.ListSensorsRequest()).sensor_ids
             assert holds == (n in new_ring.get_nodes(s))
     assert all_readable(client)
+
+
+def test_write_replies_after_two_acks_and_third_copy_still_lands(tmp_path):
+    # One replica is slow (1.5 s per write). The reply must not wait for it,
+    # but its copy must still be stored a moment later.
+    class SlowStore(store_server.SensorStoreService):
+        def Put(self, request, context):
+            time.sleep(1.5)
+            return super().Put(request, context)
+
+    from concurrent import futures as cf
+    nodes, addresses, servers = ["fast-a", "fast-b", "slow-c"], {}, []
+    for n in nodes:
+        storage = store_server.Storage(str(tmp_path / f"{n}.db"))
+        service = (SlowStore if n.startswith("slow") else store_server.SensorStoreService)(n, storage)
+        server = grpc.server(cf.ThreadPoolExecutor(max_workers=4))
+        store_server.pb_grpc.add_SensorStoreServicer_to_server(service, server)
+        addresses[n] = f"localhost:{server.add_insecure_port('[::]:0')}"
+        server.start()
+        servers.append(server)
+    manager = PartitionManager(membership.FileMembership(str(tmp_path / "m.json"), nodes),
+                               address_overrides=addresses, refresh_seconds=0.2)
+    pm_server, port = serve(manager, 0)
+    client = pm_grpc.PartitionManagerStub(grpc.insecure_channel(f"localhost:{port}"))
+
+    start = time.time()
+    reply = client.WriteReading(pm.WriteReadingRequest(reading=pmctl.fake_reading("farm1-plot1-s1")))
+    took = time.time() - start
+    assert reply.ok and reply.acks == 2
+    assert took < 1.0                                   # did not wait for the slow replica
+
+    time.sleep(2.0)                                     # ...which finishes in the background
+    slow = manager.stub("slow-c").ListSensors(ss.ListSensorsRequest()).sensor_ids
+    assert "farm1-plot1-s1" in slow                     # the 3rd copy did land
+
+    pm_server.stop(0)
+    for s in servers:
+        s.stop(0)

@@ -4,7 +4,8 @@ Partition Manager - the router in front of the Sensor Store nodes.
 Callers (Telemetry Ingestion, Irrigation Controller) only talk to this service.
 For every reading it asks the hash ring "which 3 nodes?" and forwards the call.
 
-    WriteReading  -> send to all 3 replicas, OK when 2 of 3 confirm (majority)
+    WriteReading  -> send to all 3 replicas, reply as soon as 2 of 3 confirm (majority);
+                     the 3rd keeps writing in the background
     GetLatest     -> ask the primary node; if it is down, ask the next replica
     AddNode       -> copy the sensors the new node now owns, update membership, clean up
     RemoveNode    -> the same in reverse
@@ -136,20 +137,31 @@ class PartitionManager(pm_grpc.PartitionManagerServicer):
             nodes = self.ring.get_nodes(reading.sensor_id)
             if not nodes:
                 raise RuntimeError("ring has no nodes")
-            calls = {n: self.pool.submit(self.stub(n).Put, ss.PutRequest(readings=[reading]), timeout=TIMEOUT)
-                     for n in nodes}  # all replicas in parallel
-            acks = 0
-            for node, call in calls.items():
-                try:
-                    call.result()
-                    acks += 1
-                    REPLICA_WRITES.labels(node, "ok").inc()
-                except Exception as e:
-                    REPLICA_WRITES.labels(node, "failed").inc()
-                    log("WARNING", "replica write failed", node=node, sensor_id=reading.sensor_id, error=str(e))
             needed = len(nodes) // 2 + 1  # majority: 2 of 3
+            calls = {}
+            for n in nodes:  # send to all replicas in parallel; each call returns a future
+                call = self.pool.submit(self.stub(n).Put, ss.PutRequest(readings=[reading]), timeout=TIMEOUT)
+                # Runs whenever THIS replica finishes, even after we have already replied.
+                call.add_done_callback(lambda c, n=n: self._record_replica_write(n, reading.sensor_id, c))
+                calls[call] = n
+            acks = failures = 0
+            for call in futures.as_completed(calls):  # receipts in the order they ARRIVE
+                if call.exception() is None:
+                    acks += 1
+                else:
+                    failures += 1
+                if acks >= needed or failures > len(nodes) - needed:
+                    break  # decided: reply now; any slower replica keeps writing in the background
             return pm.WriteReadingResponse(ok=acks >= needed, nodes=nodes, acks=acks)
         return self._observe("WriteReading", run, context)
+
+    def _record_replica_write(self, node, sensor_id, call):
+        """Metrics + log for one replica write, including ones that finish after the reply."""
+        if call.exception() is None:
+            REPLICA_WRITES.labels(node, "ok").inc()
+        else:
+            REPLICA_WRITES.labels(node, "failed").inc()
+            log("WARNING", "replica write failed", node=node, sensor_id=sensor_id, error=str(call.exception()))
 
     def GetLatest(self, request, context):
         def run():
