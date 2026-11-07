@@ -1,0 +1,5 @@
+# Everything of our app lives in its own namespace ("folder" inside the cluster).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: s1

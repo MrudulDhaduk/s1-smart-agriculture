@@ -1,0 +1,47 @@
+# Sensor Store = the ring nodes. A StatefulSet (not a Deployment) because each pod
+#   - has a stable name: sensor-store-0, -1, -2, -3  (= its name on the hash ring)
+#   - keeps its OWN disk (PersistentVolumeClaim) even if the pod restarts
+# No HPA here: Sensor Store is scaled by adding a ring node + rebalancing, never automatically.
+#
+# Demo "a node joins":  scale to 5 replicas, then  pmctl add-node sensor-store-4
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sensor-store
+  namespace: s1
+spec:
+  serviceName: sensor-store        # the headless Service that gives each pod its DNS name
+  replicas: 4
+  podManagementPolicy: Parallel    # start all pods at once (we don't need one-by-one)
+  selector:
+    matchLabels: { app: sensor-store }
+  template:
+    metadata:
+      labels: { app: sensor-store }
+    spec:
+      containers:
+        - name: sensor-store
+          image: s1/sensor-store:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NODE_NAME            # the pod's own name becomes its ring node name
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - { name: DATA_DIR, value: /data }
+          ports:
+            - { name: grpc, containerPort: 50052 }
+            - { name: metrics, containerPort: 8000 }
+          readinessProbe:                # "ready for traffic" once gRPC port answers
+            tcpSocket: { port: 50052 }
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 256Mi }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+  volumeClaimTemplates:                  # one 1 GB disk PER pod: data-sensor-store-0, ...
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests: { storage: 1Gi }

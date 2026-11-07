@@ -1,0 +1,20 @@
+# Laptop only: keep ring membership in a file on the (single) Docker Desktop machine,
+# shared by all Partition Manager pods through a hostPath folder. On GKE: Firestore.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: partition-manager
+  namespace: s1
+spec:
+  template:
+    spec:
+      containers:
+        - name: partition-manager
+          env:
+            - { name: MEMBERSHIP_BACKEND, value: file }
+            - { name: MEMBERSHIP_FILE, value: /ring/membership.json }
+          volumeMounts:
+            - { name: ring, mountPath: /ring }
+      volumes:
+        - name: ring
+          hostPath: { path: /tmp/s1-ring, type: DirectoryOrCreate }

@@ -1,0 +1,25 @@
+# Horizontal Pod Autoscaler = the MAPE loop from the Elasticity lecture:
+#   Monitor : metrics-server reads each pod's CPU
+#   Analyse : average CPU vs the 50% target
+#   Plan    : desired = ceil(current pods x current CPU / 50%)
+#   Execute : change the Deployment's replicas (between 2 and 6)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: partition-manager
+  namespace: s1
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: partition-manager
+  minReplicas: 2          # never fewer than 2: one pod can die without an outage
+  maxReplicas: 6          # cost ceiling
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 50 }
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 60   # wait 60 s of low CPU before removing pods (default 300)

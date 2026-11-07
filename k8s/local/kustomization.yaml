@@ -1,0 +1,14 @@
+# Laptop version of the app, for Docker Desktop's Kubernetes:
+#     kubectl apply -k k8s/local
+# Same manifests as k8s/base, plus three laptop-only changes:
+#   1. metrics-server (HPA needs it; GKE has it built in)
+#   2. a LoadBalancer Service so k6 on Windows can reach Partition Manager at localhost:50051
+#   3. ring membership in a shared file instead of Firestore (no cloud needed)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+  - metrics-server.yaml
+  - pm-loadbalancer.yaml
+patches:
+  - path: membership-file.yaml

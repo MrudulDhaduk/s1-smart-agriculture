@@ -1,0 +1,15 @@
+# Headless Service (clusterIP: None): no load balancing. Instead every StatefulSet pod gets
+# its own stable DNS name, e.g. sensor-store-2.sensor-store, so Partition Manager can reach
+# ONE specific ring node. (A normal Service would send the call to a random pod - wrong here.)
+apiVersion: v1
+kind: Service
+metadata:
+  name: sensor-store
+  namespace: s1
+  labels: { app: sensor-store }
+spec:
+  clusterIP: None
+  selector: { app: sensor-store }
+  ports:
+    - { name: grpc, port: 50052 }
+    - { name: metrics, port: 8000 }

@@ -1,0 +1,12 @@
+# Docker Desktop maps LoadBalancer Services to localhost, so k6 and pmctl on Windows
+# can call localhost:50051. Each new connection is sent to one of the Partition Manager pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: partition-manager-lb
+  namespace: s1
+spec:
+  type: LoadBalancer
+  selector: { app: partition-manager }
+  ports:
+    - { name: grpc, port: 50051, targetPort: 50051 }
