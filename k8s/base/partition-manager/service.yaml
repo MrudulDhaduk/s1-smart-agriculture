@@ -1,0 +1,14 @@
+# A normal Service: one stable name (partition-manager:50051) in front of ALL Partition
+# Manager pods, spreading connections across them. Callers never need to know how many
+# pods the HPA is currently running.
+apiVersion: v1
+kind: Service
+metadata:
+  name: partition-manager
+  namespace: s1
+  labels: { app: partition-manager }
+spec:
+  selector: { app: partition-manager }
+  ports:
+    - { name: grpc, port: 50051 }
+    - { name: metrics, port: 8000 }

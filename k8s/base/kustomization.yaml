@@ -1,0 +1,13 @@
+# The list of manifests that make up our app (what ArgoCD deploys on GKE).
+# Laptop version: k8s/local/ (adds metrics-server, a localhost entry point, file membership).
+# ArgoCD (Person 1) should point at this folder: k8s/base
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - sensor-store/service.yaml
+  - sensor-store/statefulset.yaml
+  - partition-manager/service.yaml
+  - partition-manager/deployment.yaml
+  - partition-manager/hpa.yaml
+  # - telemetry-ingestion/hpa.yaml   # enable when Person 2's Deployment exists

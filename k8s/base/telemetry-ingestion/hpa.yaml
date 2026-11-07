@@ -1,0 +1,23 @@
+# HPA #2 (task c needs at least two). Ready for Person 2's Telemetry Ingestion Deployment.
+# NOT listed in k8s/base/kustomization.yaml yet: add it there once P2's Deployment exists.
+# P2's Deployment must set resources.requests.cpu, or this HPA cannot compute CPU %.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: telemetry-ingestion
+  namespace: s1
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: telemetry-ingestion
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 50 }
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 60
