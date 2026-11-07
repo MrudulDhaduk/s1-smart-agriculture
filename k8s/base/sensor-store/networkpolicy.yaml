@@ -1,0 +1,24 @@
+# Only the Partition Manager may call Sensor Store nodes (the router design, enforced by the
+# network), and only Prometheus may read their metrics. Everything else is blocked.
+# Enforced on GKE when network policy is on (Dataplane V2, the Autopilot default);
+# Docker Desktop's network ignores it, so it changes nothing on the laptop.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sensor-store
+  namespace: s1
+spec:
+  podSelector:
+    matchLabels: { app: sensor-store }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: partition-manager }
+      ports:
+        - { port: 50052 }
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+      ports:
+        - { port: 8000 }

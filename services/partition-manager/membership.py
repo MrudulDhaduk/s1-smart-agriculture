@@ -32,6 +32,8 @@ class FileMembership:
         with self.lock:
             with open(tmp, "w") as f:
                 json.dump({"version": version, "nodes": nodes}, f)
+                f.flush()
+                os.fsync(f.fileno())    # really on disk before we swap it in (survives a power cut)
             os.replace(tmp, self.path)  # atomic: readers never see a half-written file
 
 

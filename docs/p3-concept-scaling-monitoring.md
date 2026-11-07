@@ -194,6 +194,7 @@ flowchart TB
 | **Graceful shutdown** (`preStop` + SIGTERM handling) | When the HPA removes a pod, it first stops receiving traffic, then finishes in-flight requests instead of cutting them off. |
 | **PodDisruptionBudgets** | During planned maintenance (node upgrades, drains) at most one ring node and one router pod go down at a time, so writes always keep a majority. |
 | **Topology spread** for Sensor Store | Ring nodes are spread over different machines; three copies on one machine would all die together. |
+| **NetworkPolicy** for Sensor Store | Only Partition Manager pods may call storage nodes, and only Prometheus may read their metrics: the router design enforced by the network. |
 
 The manifests are in `k8s/base` (what ArgoCD deploys on GKE) and `k8s/local` (the laptop version: adds metrics-server, a localhost entry point, and file-based membership).
 
@@ -303,6 +304,8 @@ Loki was the alternative. It was rejected because it would need extra log shippi
 | A node that was down misses writes made while it was down | Its copy is stale until repaired | Hinted handoff and read repair (Cassandra, Dynamo) |
 | Rebalancing copies one sensor at a time | About 1–2 minutes for 3,000 sensors on a laptop | Bulk, parallel streaming of data ranges |
 | Rebalancing runs inside an autoscaled pod | Scale-in can interrupt it; `pmctl repair` completes it | Run it as a separate job or controller |
+| Each `ListSensors` reply carries every sensor ID a node holds in one message | Fine up to roughly 250,000 sensors per node (gRPC's 4 MB limit); beyond that it needs paging | Paged listing, like the batched history copy |
+| Admin calls (`AddNode`, `RemoveNode`) have no authentication | Any pod that can reach Partition Manager could change the ring | mTLS between services, or a separate admin endpoint |
 | Replica placement does not know which machine a node runs on | Pods are spread over machines, but with more ring nodes than machines two copies of one sensor can still share a machine | Rack- or zone-aware placement (Cassandra's NetworkTopologyStrategy) |
 | Two membership changes started on two different router pods at the same moment | Both read version N and write N + 1, so one change overwrites the other (a *lost update*) | Compare-and-set on the version, e.g. a Firestore transaction |
 | Metric counters live in pod memory | They disappear when the HPA removes that pod; the dashboard shows the highest value in the time range | Push important events to durable storage |
