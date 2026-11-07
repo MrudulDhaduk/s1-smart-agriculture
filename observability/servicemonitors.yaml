@@ -1,0 +1,25 @@
+# ServiceMonitor = "Prometheus, please read /metrics from the pods behind this Service every 15 s".
+# (A ServiceMonitor is a custom resource added by kube-prometheus-stack, so install that first.)
+#
+#   kubectl apply -f observability/servicemonitors.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: partition-manager
+  namespace: s1
+spec:
+  selector:
+    matchLabels: { app: partition-manager }
+  endpoints:
+    - { port: metrics, interval: 15s }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sensor-store
+  namespace: s1
+spec:
+  selector:
+    matchLabels: { app: sensor-store }
+  endpoints:
+    - { port: metrics, interval: 15s }   # headless Service: every ring node is scraped separately
