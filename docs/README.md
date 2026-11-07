@@ -5,4 +5,6 @@ Required sections (from the assignment): system overview, cloud deployment archi
 Each person writes their own section:
 - `p1-infrastructure-storage.md`
 - `p2-events-streaming.md`
-- `p3-concept-scaling-monitoring.md`
+- `p3-concept-scaling-monitoring.md` ✅ (with `p3-demo-script.md`, the live demo walkthrough)
+
+Shared: `p3-design-decisions.md` (Person 3's decisions and what teammates need to do), `images/` (figures; `images/make_figures.py` redraws the charts).
