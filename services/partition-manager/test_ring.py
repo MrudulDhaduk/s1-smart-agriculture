@@ -92,3 +92,10 @@ def test_reads_survive_one_node_crash_with_three_replicas():
     alive = {"store-0", "store-1", "store-3"}
     for k in SENSORS:
         assert any(n in alive and k in disk[n] for n in ring.get_nodes(k))
+
+
+def test_adding_the_same_node_twice_changes_nothing():
+    ring = make_ring(vnodes=100, replicas=3)
+    before = list(ring._positions)
+    ring.add_node("store-1")
+    assert ring._positions == before

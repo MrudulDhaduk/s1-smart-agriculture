@@ -28,6 +28,7 @@ Settings (environment variables):
 
 import json
 import os
+import signal
 import sys
 import threading
 import time
@@ -57,6 +58,10 @@ RING_NODES = Gauge("pm_ring_nodes", "Number of nodes on the ring")
 REBALANCES = Counter("pm_rebalance_events_total", "Membership changes handled", ["type"])
 MOVED = Counter("pm_rebalance_sensors_moved_total", "Sensors copied to a new owner during rebalancing")
 REBALANCE_SECONDS = Gauge("pm_last_rebalance_seconds", "How long the last rebalance took")
+
+
+class InvalidRequest(ValueError):
+    """The caller sent something wrong: answer INVALID_ARGUMENT, not a server error."""
 
 
 def log(level, message, **fields):
@@ -122,6 +127,9 @@ class PartitionManager(pm_grpc.PartitionManagerServicer):
             result = fn()
             REQUESTS.labels(method, "ok").inc()
             return result
+        except InvalidRequest as e:  # the caller's mistake: not counted as a server error
+            REQUESTS.labels(method, "invalid").inc()
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
         except Exception as e:
             REQUESTS.labels(method, "error").inc()
             log("ERROR", "request failed", method=method, error=str(e))
@@ -134,7 +142,9 @@ class PartitionManager(pm_grpc.PartitionManagerServicer):
         def run():
             reading = request.reading
             if not reading.sensor_id:
-                raise ValueError("sensor_id is required")
+                raise InvalidRequest("sensor_id is required")
+            if reading.timestamp_ms <= 0:  # it is half of the primary key; 0 would overwrite other readings
+                raise InvalidRequest("timestamp_ms is required")
             nodes = self.ring.get_nodes(reading.sensor_id)
             if not nodes:
                 raise RuntimeError("ring has no nodes")
@@ -174,7 +184,9 @@ class PartitionManager(pm_grpc.PartitionManagerServicer):
 
     def GetLatest(self, request, context):
         def run():
-            # Try each sensor's primary first; whatever fails is retried on the next replica.
+            # Try each sensor's primary first. A sensor is retried on its next replica when the
+            # node FAILED, and also when the node answered but did not have it (for example a
+            # node that came back with an empty disk). Otherwise that would be a silent miss.
             pending = {s: self.ring.get_nodes(s) for s in request.sensor_ids}
             found = []
             for attempt in range(self.replicas):
@@ -182,17 +194,18 @@ class PartitionManager(pm_grpc.PartitionManagerServicer):
                 for sensor, owners in pending.items():
                     if attempt < len(owners):
                         by_node.setdefault(owners[attempt], []).append(sensor)
-                failed = {}
+                retry = {}
                 for node, sensors in by_node.items():
                     try:
                         reply = self.stub(node).GetLatest(ss.StoreLatestRequest(sensor_ids=sensors),
                                                           timeout=TIMEOUT)
                         found.extend(reply.readings)
+                        got = {r.sensor_id for r in reply.readings}
+                        retry.update({s: pending[s] for s in sensors if s not in got})
                     except Exception as e:
                         log("WARNING", "read failed, trying next replica", node=node, error=str(e))
-                        for s in sensors:
-                            failed[s] = pending[s]
-                pending = failed
+                        retry.update({s: pending[s] for s in sensors})
+                pending = retry
                 if not pending:
                     break
             return pm.GetLatestResponse(readings=found)
@@ -201,14 +214,19 @@ class PartitionManager(pm_grpc.PartitionManagerServicer):
     def GetHistory(self, request, context):
         def run():
             limit = request.limit or 100
+            answered = False
             for node in self.ring.get_nodes(request.sensor_id):
                 try:
                     reply = self.stub(node).GetHistory(
                         ss.StoreHistoryRequest(sensor_id=request.sensor_id, from_ms=request.from_ms,
                                                to_ms=request.to_ms, limit=limit), timeout=TIMEOUT)
-                    return pm.GetHistoryResponse(readings=reply.readings)
+                    answered = True
+                    if reply.readings:  # an empty answer may just mean this replica lacks the data
+                        return pm.GetHistoryResponse(readings=reply.readings)
                 except Exception as e:
                     log("WARNING", "history read failed, trying next replica", node=node, error=str(e))
+            if answered:
+                return pm.GetHistoryResponse()  # replicas answered, nobody has readings in that range
             raise RuntimeError("all replicas failed")
         return self._observe("GetHistory", run, context)
 
@@ -289,6 +307,14 @@ class PartitionManager(pm_grpc.PartitionManagerServicer):
                         pass  # the node may be dead; that is often why it was removed
 
 
+def wait_for_stop_signal():
+    """Block until Kubernetes asks us to stop (SIGTERM, e.g. HPA scale-in) or Ctrl+C."""
+    stop = threading.Event()
+    signal.signal(signal.SIGTERM, lambda *_: stop.set())
+    signal.signal(signal.SIGINT, lambda *_: stop.set())
+    stop.wait()
+
+
 def serve(manager, port):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=32))
     pm_grpc.add_PartitionManagerServicer_to_server(manager, server)
@@ -311,4 +337,6 @@ if __name__ == "__main__":
         refresh_seconds=float(os.environ.get("REFRESH_SECONDS", "5")),
     )
     server, _ = serve(manager, int(os.environ.get("GRPC_PORT", "50051")))
-    server.wait_for_termination()
+    wait_for_stop_signal()
+    log("INFO", "shutting down: finishing in-flight requests")
+    server.stop(grace=10).wait()  # stop accepting new calls, give running ones 10 s to finish

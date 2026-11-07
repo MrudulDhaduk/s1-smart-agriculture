@@ -181,3 +181,26 @@ def test_slow_primary_is_waited_for_so_reads_see_the_write(tmp_path):
     assert latest.timestamp_ms == reading.timestamp_ms  # read-your-writes: the new reading, not an old one
     for s in servers:
         s.stop(0)
+
+
+def test_read_falls_through_when_a_live_replica_lacks_the_sensor(cluster):
+    # A replica is ALIVE but has lost the data (e.g. came back with an empty disk).
+    # Reads must try the next replica instead of silently returning nothing.
+    client, manager, *_ = cluster
+    sensor = SENSORS[0]
+    primary = manager.ring.get_nodes(sensor)[0]
+    manager.stub(primary).DeleteSensor(ss.DeleteSensorRequest(sensor_id=sensor))
+
+    assert len(client.GetLatest(pm.GetLatestRequest(sensor_ids=[sensor])).readings) == 1
+    assert len(client.GetHistory(pm.GetHistoryRequest(sensor_id=sensor)).readings) >= 1
+
+
+def test_bad_input_is_invalid_argument_not_a_server_error(cluster):
+    client, *_ = cluster
+    for bad in (pmctl.reading_pb2.Reading(timestamp_ms=1),                  # no sensor_id
+                pmctl.reading_pb2.Reading(sensor_id="farm1-plot1-s1")):   # no timestamp
+        try:
+            client.WriteReading(pm.WriteReadingRequest(reading=bad))
+            assert False, "should have been rejected"
+        except grpc.RpcError as e:
+            assert e.code() == grpc.StatusCode.INVALID_ARGUMENT

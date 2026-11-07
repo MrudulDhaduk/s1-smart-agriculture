@@ -14,6 +14,7 @@ Settings (environment variables):
 
 import json
 import os
+import signal
 import sqlite3
 import sys
 import threading
@@ -152,9 +153,12 @@ class SensorStoreService(pb_grpc.SensorStoreServicer):
 def update_gauges(node, storage, every=5):
     """Refresh 'keys per node' for Grafana every few seconds (cheaper than on every write)."""
     while True:
-        sensors, readings = storage.counts()
-        SENSORS.labels(node).set(sensors)
-        READINGS.labels(node).set(readings)
+        try:
+            sensors, readings = storage.counts()
+            SENSORS.labels(node).set(sensors)
+            READINGS.labels(node).set(readings)
+        except Exception as e:  # never let one bad moment kill this thread (the panel would freeze)
+            log("WARNING", "could not refresh gauges", node=node, error=str(e))
         time.sleep(every)
 
 
@@ -179,4 +183,9 @@ if __name__ == "__main__":
         data_dir=os.environ.get("DATA_DIR", "./data"),
         port=int(os.environ.get("GRPC_PORT", "50052")),
     )
-    server.wait_for_termination()
+    stop = threading.Event()  # Kubernetes sends SIGTERM before it removes a pod
+    signal.signal(signal.SIGTERM, lambda *_: stop.set())
+    signal.signal(signal.SIGINT, lambda *_: stop.set())
+    stop.wait()
+    log("INFO", "shutting down: finishing in-flight requests")
+    server.stop(grace=10).wait()
