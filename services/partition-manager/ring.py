@@ -34,6 +34,8 @@ class HashRing:
 
     def add_node(self, node: str) -> None:
         """Put a new node on the ring at `vnodes` spots."""
+        if node in self.nodes:  # already on the ring: adding again must not duplicate its spots
+            return
         self.nodes.add(node)
         for i in range(self.vnodes):
             spot = hash_key(f"{node}#{i}")       # e.g. "store-3#0", "store-3#1", ...
