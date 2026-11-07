@@ -63,7 +63,8 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "unit": "reqps"
+              "unit": "reqps",
+              "min": 0
             },
             "overrides": []
           },
@@ -95,7 +96,8 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "unit": "percent"
+              "unit": "percent",
+              "min": 0
             },
             "overrides": []
           },
@@ -136,7 +138,8 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "unit": "s"
+              "unit": "s",
+              "min": 0
             },
             "overrides": []
           },
@@ -199,7 +202,8 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "unit": "short"
+              "unit": "short",
+              "min": 0
             },
             "overrides": []
           },
@@ -249,7 +253,8 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "unit": "short"
+              "unit": "short",
+              "min": 0
             },
             "overrides": []
           },
@@ -260,7 +265,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "1000 * sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"s1\", container=\"partition-manager\"}[1m]))",
+              "expr": "1000 * sum by (pod) (rate(process_cpu_seconds_total{namespace=\"s1\", job=\"partition-manager\"}[1m]))",
               "legendFormat": "{{pod}}"
             }
           ]
@@ -294,7 +299,8 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "unit": "short"
+              "unit": "short",
+              "min": 0
             },
             "overrides": []
           },
@@ -335,7 +341,8 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "unit": "reqps"
+              "unit": "reqps",
+              "min": 0
             },
             "overrides": []
           },
@@ -367,7 +374,8 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "unit": "short"
+              "unit": "short",
+              "min": 0
             },
             "overrides": []
           },
@@ -396,7 +404,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(pm_rebalance_events_total)",
+              "expr": "sum(pm_rebalance_events_total) or vector(0)",
               "legendFormat": "rebalance events"
             },
             {
@@ -447,7 +455,8 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "unit": "short"
+              "unit": "short",
+              "min": 0
             },
             "overrides": []
           },
@@ -505,7 +514,8 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "unit": "percent"
+              "unit": "percent",
+              "min": 0
             },
             "overrides": []
           },
@@ -537,7 +547,8 @@ data:
           },
           "fieldConfig": {
             "defaults": {
-              "unit": "percent"
+              "unit": "percent",
+              "min": 0
             },
             "overrides": []
           },
