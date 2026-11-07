@@ -6,7 +6,7 @@ Kubernetes manifests (YAML files describing the desired state of the app).
 k8s/
 ├── base/     the real app: what ArgoCD deploys on GKE (point ArgoCD at k8s/base)
 │   ├── namespace.yaml                 namespace "s1"
-│   ├── sensor-store/                  StatefulSet (4 ring nodes, 1 disk each) + headless Service + PodDisruptionBudget
+│   ├── sensor-store/                  StatefulSet (4 ring nodes, 1 disk each) + headless Service + PodDisruptionBudget + NetworkPolicy
 │   ├── partition-manager/             Deployment + Service + HPA (2-6 pods, 50% CPU) + PodDisruptionBudget + ServiceAccount
 │   └── telemetry-ingestion/hpa.yaml   HPA #2, enabled once Person 2's Deployment exists
 └── local/    laptop version for Docker Desktop: base + metrics-server + localhost entry + file membership on a small disk

@@ -266,3 +266,20 @@ def test_restarted_node_is_used_again_within_seconds(cluster, tmp_path):
         time.sleep(0.5)
     else:
         assert False, "restarted node was not used again within 8 s"
+
+
+def test_old_copy_is_kept_when_the_copy_to_the_new_node_fails(cluster, monkeypatch):
+    import transfer
+    client, manager, *_ = cluster
+    sensor = sensor_gaining(manager, "sensor-store-4")
+    old = manager.build_ring(NODES[:4]).get_nodes(sensor)
+    new = manager.build_ring(NODES).get_nodes(sensor)
+    lost = [n for n in old if n not in new][0]
+
+    real_copy = transfer.copy_history
+    def flaky_copy(stub_of, s, sources, targets, timeout=10.0):
+        return 0 if s == sensor else real_copy(stub_of, s, sources, targets, timeout)  # every source "fails"
+    monkeypatch.setattr(transfer, "copy_history", flaky_copy)
+
+    client.AddNode(pm.NodeRequest(node="sensor-store-4"))
+    assert sensor in manager.stub(lost).ListSensors(ss.ListSensorsRequest()).sensor_ids   # not deleted

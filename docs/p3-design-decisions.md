@@ -28,7 +28,7 @@ Decided 7 Nov 2026. Each decision has a one-line reason (the viva answer).
 
 **Person 2**
 - Telemetry Ingestion's Deployment must set `resources.requests.cpu` (HPA measures CPU % relative to it).
-- Telemetry Ingestion calls Partition Manager `Write` over gRPC.
+- Telemetry Ingestion calls Partition Manager `WriteReading` over gRPC, with `sensor_id` and `timestamp_ms` always set (both are required).
 
 **Everyone**
 - Log one JSON object per line to stdout, with at least: `service`, `level`, `message`, and `sensor_id` / `node` where relevant.

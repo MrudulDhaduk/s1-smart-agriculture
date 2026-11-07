@@ -299,10 +299,14 @@ class PartitionManager(pm_grpc.PartitionManagerServicer):
         for sensor in self._all_sensors(old_ring):
             old, new = old_ring.get_nodes(sensor), new_ring.get_nodes(sensor)
             gained = [n for n in new if n not in old]
-            if gained:
-                # in batches, from the first old owner that is alive AND has the data
-                transfer.copy_history(self.stub, sensor, sources=old, targets=gained, timeout=TIMEOUT * 5)
+            if not gained:
+                continue
+            # in batches, from the first old owner that is alive AND has the data
+            copied = transfer.copy_history(self.stub, sensor, sources=old, targets=gained, timeout=TIMEOUT * 5)
+            if copied:  # only a sensor that really arrived may later lose its old copies
                 moves[sensor] = (old, new)
+            else:
+                log("WARNING", "could not copy sensor; keeping its old copies", sensor_id=sensor, targets=gained)
         return moves
 
     def _delete_old_copies(self, old_ring, new_ring, moves):

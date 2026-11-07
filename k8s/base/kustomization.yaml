@@ -8,6 +8,7 @@ resources:
   - sensor-store/service.yaml
   - sensor-store/statefulset.yaml
   - sensor-store/pdb.yaml
+  - sensor-store/networkpolicy.yaml
   - partition-manager/serviceaccount.yaml
   - partition-manager/service.yaml
   - partition-manager/deployment.yaml
