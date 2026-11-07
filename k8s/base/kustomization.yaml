@@ -7,7 +7,10 @@ resources:
   - namespace.yaml
   - sensor-store/service.yaml
   - sensor-store/statefulset.yaml
+  - sensor-store/pdb.yaml
+  - partition-manager/serviceaccount.yaml
   - partition-manager/service.yaml
   - partition-manager/deployment.yaml
   - partition-manager/hpa.yaml
+  - partition-manager/pdb.yaml
   # - telemetry-ingestion/hpa.yaml   # enable when Person 2's Deployment exists

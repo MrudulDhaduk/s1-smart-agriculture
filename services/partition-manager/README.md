@@ -13,8 +13,9 @@
 | `membership.py` | Where the node list lives: a JSON file locally, Firestore on GKE |
 | `pmctl.py` | Command-line remote control for demos |
 | `demo.py` | Offline demo: 80% vs 18% moved, balance, crash survival |
-| `test_ring.py` | 8 unit tests for the ring |
-| `test_integration.py` | 4 end-to-end tests: real gRPC, 5 stores, crashes, add/remove node |
+| `transfer.py` | Copies one sensor's readings between nodes in batches (used by rebalancing and repair) |
+| `test_ring.py` | 9 unit tests for the ring |
+| `test_integration.py` | 13 end-to-end tests: real gRPC, 5 stores, crashes, slow replicas, add/remove node, repair, long histories, restarts, bad input |
 
 ## Run everything with Docker (from the repo root)
 

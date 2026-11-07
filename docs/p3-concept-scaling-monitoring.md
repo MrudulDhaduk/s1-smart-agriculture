@@ -78,7 +78,7 @@ With 1 spot, store-2 held **62%** of the data. With 100 spots every node is clos
 | Readable after one node crashes, 3 copies | **100%** |
 | Readable after three of four nodes crash, 3 copies | 71.8%: replication factor 3 survives **any 2** failures, not 3 |
 
-**Tests:** 8 unit tests for the ring (`test_ring.py`) and 5 end-to-end tests that run the real services over gRPC (`test_integration.py`). All 13 pass.
+**Tests:** 9 unit tests for the ring (`test_ring.py`) and 13 end-to-end tests that run the real services over gRPC (`test_integration.py`): crashes, slow replicas, node joins and removals, interrupted rebalances, long histories, restarted nodes, bad input. All 22 pass.
 
 ---
 
@@ -121,7 +121,7 @@ sequenceDiagram
 
 - **Writes** go to all 3 replicas in parallel. The Partition Manager replies once a **majority (2 of 3)** has confirmed **and the primary has answered**. A slow non-primary replica is not waited for; it finishes in the background and is still counted in the metrics. If the primary fails, any majority is enough.
 - **Consistency (tunable, like Cassandra):** W = 2 with the primary required, R = 1 (reads ask the primary). In the normal case this gives **read-your-writes**: a read after "ok" always sees the reading. Full strong consistency would need R + W > N, for example quorum reads (R = 2, newest timestamp wins). We chose not to pay for that: soil moisture changes over minutes, and analytics are computed by Flink from the Kafka stream. Remaining edge case: if the primary is alive but its write times out, a read can briefly return the previous reading, and that one reading is missing from the primary's history.
-- **Reads** go to the primary. If it does not answer, the Partition Manager retries on the next replica. The caller never notices.
+- **Reads** go to the primary. If it does not answer, **or answers without the data** (for example a node that came back with an empty disk), the Partition Manager retries on the next replica. The caller never notices.
 - **Router, not lookup.** Callers only ever talk to the Partition Manager, so the partitioning logic lives in one service instead of being re-implemented inside every caller.
 
 ### 3.3 Ring membership
@@ -132,10 +132,12 @@ The list of nodes is one small record, `{version, nodes}`. Every Partition Manag
 
 ```mermaid
 flowchart LR
-    A["1. Copy<br/>every sensor whose owner list<br/>gains the new node"] --> B["2. Switch<br/>save membership version + 1;<br/>all pods follow within 5 s"]
-    B --> C["3. Catch up<br/>copy again, for readings<br/>written during step 1"]
+    A["1. Copy<br/>every sensor whose owner list<br/>gains the new node"] --> B["2. Switch + wait<br/>save membership version + 1;<br/>wait until every router pod uses it"]
+    B --> C["3. Catch up<br/>re-scan and copy readings and new<br/>sensors written via the old ring"]
     C --> D["4. Clean up<br/>delete copies on nodes<br/>that no longer own them"]
 ```
+
+Details that make it safe: a node must be **reachable** before it can be added; data is copied in **batches of 2,000 readings**, because gRPC refuses messages over 4 MB and a sensor reporting every 5 s passes that in under 4 days; and a source that is down, or alive but empty, is skipped in favour of the next old owner. The wait in step 2 matters because router pods re-read membership every 5 s: until all of them use the new ring, some still read from and write to the old owners, so deleting earlier would cause silent misses.
 
 Every step is **idempotent**: storing the same reading twice changes nothing (`INSERT OR REPLACE`), so any step can safely be repeated. `pmctl repair` builds on that. It compares what every node **holds** with what the ring says it **should** hold, copies whatever is missing and deletes whatever is extra. This is the same idea as Cassandra's anti-entropy `nodetool repair`, and it finishes a rebalance that was interrupted, for example by the HPA removing the pod that was running it. A dedicated test reproduces that case.
 
@@ -189,6 +191,9 @@ flowchart TB
 | Sensor Store is a **StatefulSet** | Each pod has a stable name, which is its name on the ring, and its own persistent disk that survives restarts. |
 | Sensor Store uses a **headless** Service | A normal Service sends a call to a random pod. The router must reach one specific ring node, so each pod gets its own DNS name. |
 | CPU **requests** on every pod | The HPA measures CPU as a percentage of the request. Without a request it cannot scale. |
+| **Graceful shutdown** (`preStop` + SIGTERM handling) | When the HPA removes a pod, it first stops receiving traffic, then finishes in-flight requests instead of cutting them off. |
+| **PodDisruptionBudgets** | During planned maintenance (node upgrades, drains) at most one ring node and one router pod go down at a time, so writes always keep a majority. |
+| **Topology spread** for Sensor Store | Ring nodes are spread over different machines; three copies on one machine would all die together. |
 
 The manifests are in `k8s/base` (what ArgoCD deploys on GKE) and `k8s/local` (the laptop version: adds metrics-server, a localhost entry point, and file-based membership).
 
@@ -298,6 +303,7 @@ Loki was the alternative. It was rejected because it would need extra log shippi
 | A node that was down misses writes made while it was down | Its copy is stale until repaired | Hinted handoff and read repair (Cassandra, Dynamo) |
 | Rebalancing copies one sensor at a time | About 1–2 minutes for 3,000 sensors on a laptop | Bulk, parallel streaming of data ranges |
 | Rebalancing runs inside an autoscaled pod | Scale-in can interrupt it; `pmctl repair` completes it | Run it as a separate job or controller |
+| Replica placement does not know which machine a node runs on | Pods are spread over machines, but with more ring nodes than machines two copies of one sensor can still share a machine | Rack- or zone-aware placement (Cassandra's NetworkTopologyStrategy) |
 | Two membership changes started on two different router pods at the same moment | Both read version N and write N + 1, so one change overwrites the other (a *lost update*) | Compare-and-set on the version, e.g. a Firestore transaction |
 | Metric counters live in pod memory | They disappear when the HPA removes that pod; the dashboard shows the highest value in the time range | Push important events to durable storage |
 

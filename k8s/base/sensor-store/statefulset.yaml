@@ -19,6 +19,14 @@ spec:
     metadata:
       labels: { app: sensor-store }
     spec:
+      terminationGracePeriodSeconds: 30
+      # Spread ring nodes over different machines: 3 replicas on ONE machine would all die together.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway      # still schedules on a 1-machine laptop cluster
+          labelSelector:
+            matchLabels: { app: sensor-store }
       containers:
         - name: sensor-store
           image: s1/sensor-store:latest
@@ -33,6 +41,9 @@ spec:
           readinessProbe:                # "ready for traffic" once gRPC port answers
             tcpSocket: { port: 50052 }
             periodSeconds: 5
+          lifecycle:
+            preStop:
+              exec: { command: ["sleep", "5"] }
           resources:
             requests: { cpu: 100m, memory: 128Mi }
             limits: { memory: 256Mi }

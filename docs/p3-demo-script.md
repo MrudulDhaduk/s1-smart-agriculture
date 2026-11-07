@@ -108,5 +108,6 @@ kubectl apply -k k8s/local
 kubectl apply -f observability/servicemonitors.yaml
 ```
 
-The ring file lives in a folder on the Docker Desktop machine; if `pmctl ring` still shows 5 nodes after the reset, run
-`kubectl exec -n s1 deploy/partition-manager -- rm /ring/membership.json` and then `kubectl rollout restart deployment/partition-manager -n s1`.
+Deleting the namespace also deletes the ring-membership disk, so the ring starts again at version 1 with 4 nodes.
+
+**Order matters when shrinking:** take a node off the ring first (`pmctl remove-node sensor-store-4`), then scale the StatefulSet down (`kubectl scale statefulset sensor-store -n s1 --replicas=4`). The other order also works, because removing a dead node copies its data from the survivors, but it is slower and riskier.
