@@ -57,8 +57,10 @@ ROWS = [
         ("stat", "Ring", "short", 8, [
             ('max(pm_ring_version)', "ring version"),
             ('max(pm_ring_nodes)', "ring nodes"),
-            ('sum(pm_rebalance_events_total) or vector(0)', "rebalance events"),
-            ('sum(pm_rebalance_sensors_moved_total)', "sensors moved"),
+            # Counters live in pod memory and vanish when the HPA removes that pod, so show the
+            # highest value seen in the selected time range instead of only the current one.
+            ('max_over_time((sum(pm_rebalance_events_total) or vector(0))[$__range:])', "rebalance events"),
+            ('max_over_time((sum(pm_rebalance_sensors_moved_total) or vector(0))[$__range:])', "sensors moved"),
         ]),
     ]),
     ("Cluster health", [
