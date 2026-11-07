@@ -124,9 +124,8 @@ def test_repair_finishes_an_interrupted_rebalance(cluster):
     assert all_readable(client)
 
 
-def test_write_replies_after_two_acks_and_third_copy_still_lands(tmp_path):
-    # One replica is slow (1.5 s per write). The reply must not wait for it,
-    # but its copy must still be stored a moment later.
+def slow_cluster(tmp_path):
+    """3 nodes, one of them ("slow-c") takes 1.5 s per write. Every sensor lives on all 3."""
     class SlowStore(store_server.SensorStoreService):
         def Put(self, request, context):
             time.sleep(1.5)
@@ -146,17 +145,39 @@ def test_write_replies_after_two_acks_and_third_copy_still_lands(tmp_path):
                                address_overrides=addresses, refresh_seconds=0.2)
     pm_server, port = serve(manager, 0)
     client = pm_grpc.PartitionManagerStub(grpc.insecure_channel(f"localhost:{port}"))
+    return client, manager, servers + [pm_server]
+
+
+def sensor_whose_primary(manager, wanted_primary, is_primary):
+    return next(s for s in SENSORS if (manager.ring.get_nodes(s)[0] == wanted_primary) == is_primary)
+
+
+def test_slow_non_primary_is_not_waited_for_but_still_gets_its_copy(tmp_path):
+    client, manager, servers = slow_cluster(tmp_path)
+    sensor = sensor_whose_primary(manager, "slow-c", is_primary=False)
 
     start = time.time()
-    reply = client.WriteReading(pm.WriteReadingRequest(reading=pmctl.fake_reading("farm1-plot1-s1")))
-    took = time.time() - start
+    reply = client.WriteReading(pm.WriteReadingRequest(reading=pmctl.fake_reading(sensor)))
     assert reply.ok and reply.acks == 2
-    assert took < 1.0                                   # did not wait for the slow replica
+    assert time.time() - start < 1.0                    # did not wait for the slow replica
 
     time.sleep(2.0)                                     # ...which finishes in the background
-    slow = manager.stub("slow-c").ListSensors(ss.ListSensorsRequest()).sensor_ids
-    assert "farm1-plot1-s1" in slow                     # the 3rd copy did land
+    assert sensor in manager.stub("slow-c").ListSensors(ss.ListSensorsRequest()).sensor_ids
+    for s in servers:
+        s.stop(0)
 
-    pm_server.stop(0)
+
+def test_slow_primary_is_waited_for_so_reads_see_the_write(tmp_path):
+    client, manager, servers = slow_cluster(tmp_path)
+    sensor = sensor_whose_primary(manager, "slow-c", is_primary=True)
+    reading = pmctl.fake_reading(sensor)
+
+    start = time.time()
+    reply = client.WriteReading(pm.WriteReadingRequest(reading=reading))
+    assert reply.ok
+    assert time.time() - start >= 1.4                   # waited for the primary
+
+    latest = client.GetLatest(pm.GetLatestRequest(sensor_ids=[sensor])).readings[0]
+    assert latest.timestamp_ms == reading.timestamp_ms  # read-your-writes: the new reading, not an old one
     for s in servers:
         s.stop(0)

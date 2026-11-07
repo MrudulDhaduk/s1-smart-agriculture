@@ -4,8 +4,8 @@ Partition Manager - the router in front of the Sensor Store nodes.
 Callers (Telemetry Ingestion, Irrigation Controller) only talk to this service.
 For every reading it asks the hash ring "which 3 nodes?" and forwards the call.
 
-    WriteReading  -> send to all 3 replicas, reply as soon as 2 of 3 confirm (majority);
-                     the 3rd keeps writing in the background
+    WriteReading  -> send to all 3 replicas, reply once 2 of 3 confirm (majority) AND the
+                     primary has answered; a slow non-primary keeps writing in the background
     GetLatest     -> ask the primary node; if it is down, ask the next replica
     AddNode       -> copy the sensors the new node now owns, update membership, clean up
     RemoveNode    -> the same in reverse
@@ -144,13 +144,21 @@ class PartitionManager(pm_grpc.PartitionManagerServicer):
                 # Runs whenever THIS replica finishes, even after we have already replied.
                 call.add_done_callback(lambda c, n=n: self._record_replica_write(n, reading.sensor_id, c))
                 calls[call] = n
+            # Rule: reply once a majority has confirmed AND the primary has answered.
+            # Reads go to the primary, so waiting for it means a read right after "ok" sees
+            # this reading (read-your-writes). A slow NON-primary replica is not waited for.
+            # If the primary fails, any majority is enough (reads then fail over to the others).
+            primary = nodes[0]
             acks = failures = 0
+            primary_answered = False
             for call in futures.as_completed(calls):  # receipts in the order they ARRIVE
                 if call.exception() is None:
                     acks += 1
                 else:
                     failures += 1
-                if acks >= needed or failures > len(nodes) - needed:
+                if calls[call] == primary:
+                    primary_answered = True
+                if (acks >= needed and primary_answered) or failures > len(nodes) - needed:
                     break  # decided: reply now; any slower replica keeps writing in the background
             return pm.WriteReadingResponse(ok=acks >= needed, nodes=nodes, acks=acks)
         return self._observe("WriteReading", run, context)
