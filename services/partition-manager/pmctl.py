@@ -6,6 +6,7 @@ pmctl.py - a small command-line remote control for the Partition Manager (for de
     python pmctl.py latest farm1-plot1-s1         newest reading of a sensor
     python pmctl.py where farm1-plot1-s1          which nodes hold this sensor
     python pmctl.py stats                         how many sensors each node holds
+    python pmctl.py repair                        make every node hold exactly what the ring says
     python pmctl.py add-node sensor-store-4       join a node and rebalance
     python pmctl.py remove-node sensor-store-2    remove a node and rebalance
 
@@ -46,10 +47,49 @@ def show_ring(r):
         print("  ", n)
 
 
+def repair(stub, address_of=None):
+    """Anti-entropy (like Cassandra's `nodetool repair`): compare what each node HOLDS with what
+    the ring says it SHOULD hold. Copy missing sensors, delete extra copies. Safe to run any time,
+    because storing a reading twice changes nothing (INSERT OR REPLACE)."""
+    state = stub.GetRing(pm.GetRingRequest())
+    ring = HashRing(vnodes=state.vnodes, replicas=state.replicas)
+    for n in state.nodes:
+        ring.add_node(n)
+    if address_of is None:
+        template = os.environ.get("NODE_ADDRESS", "{node}:50052")
+        address_of = lambda n: template.format(node=n)  # noqa: E731
+    nodes = {n: ss_grpc.SensorStoreStub(grpc.insecure_channel(address_of(n))) for n in state.nodes}
+
+    held = {}
+    for n, node in nodes.items():
+        try:
+            held[n] = set(node.ListSensors(ss.ListSensorsRequest(), timeout=30).sensor_ids)
+        except grpc.RpcError:
+            print(f"  {n} is DOWN, skipping it")
+
+    copied = deleted = 0
+    for sensor in set().union(*held.values()):
+        owners = ring.get_nodes(sensor)
+        holders = [n for n in held if sensor in held[n]]
+        missing = [n for n in owners if n in held and sensor not in held[n]]
+        if missing:
+            readings = nodes[holders[0]].GetHistory(
+                ss.StoreHistoryRequest(sensor_id=sensor, limit=0), timeout=30).readings
+            for n in missing:
+                nodes[n].Put(ss.PutRequest(readings=readings), timeout=30)
+                copied += 1
+        if all(o in held for o in owners):  # only clean up when every owner is alive and has a copy
+            for n in holders:
+                if n not in owners:
+                    nodes[n].DeleteSensor(ss.DeleteSensorRequest(sensor_id=sensor), timeout=30)
+                    deleted += 1
+    print(f"repair done: {copied} missing copies made, {deleted} extra copies removed")
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--addr", default="localhost:50051")
-    p.add_argument("command", choices=["ring", "write", "latest", "where", "stats", "add-node", "remove-node"])
+    p.add_argument("command", choices=["ring", "write", "latest", "where", "stats", "repair", "add-node", "remove-node"])
     p.add_argument("arg", nargs="?")
     a = p.parse_args()
     stub = pm_grpc.PartitionManagerStub(grpc.insecure_channel(a.addr))
@@ -84,6 +124,8 @@ def main():
                 print(f"  {n}: {count:4} sensors  " + "#" * (count // 5))
             except grpc.RpcError:
                 print(f"  {n}: DOWN")
+    elif a.command == "repair":
+        repair(stub)
     elif a.command == "add-node":
         show_ring(stub.AddNode(pm.NodeRequest(node=a.arg), timeout=300))
     elif a.command == "remove-node":
