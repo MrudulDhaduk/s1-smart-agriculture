@@ -134,4 +134,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except grpc.RpcError as e:  # show the server's reason in one line instead of a long traceback
+        sys.exit(f"error ({e.code().name}): {e.details()}")
