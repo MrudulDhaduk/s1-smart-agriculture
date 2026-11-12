@@ -1,0 +1,13 @@
+{
+  "alert_id": "DRY_SOIL-farm7-plot2-1762480000000",
+  "type": "DRY_SOIL",
+  "severity": "WARNING",
+  "source": "irrigation-controller",
+  "farm_id": "farm7",
+  "plot_id": "farm7-plot2",
+  "sensor_ids": [],
+  "moisture_pct": 18.2,
+  "threshold_pct": 25.0,
+  "message": "Average soil moisture 18.2% is below the tomato minimum of 25.0%",
+  "detected_at_ms": 1762480000000
+}
