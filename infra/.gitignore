@@ -1,0 +1,7 @@
+# Temporary local-backend override for the first bootstrap run (see README)
+*_override.tf
+# Saved plans can contain secrets in plain text
+tfplan
+*.tfplan
+# Function source zips built by infra/serverless
+.build/
