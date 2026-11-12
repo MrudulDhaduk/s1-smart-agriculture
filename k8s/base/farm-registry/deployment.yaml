@@ -1,0 +1,32 @@
+# Farm Registry = stateless REST service (its data lives in Cloud SQL), so a Deployment of
+# interchangeable pods. Without database settings (laptop) it falls back to SQLite in the pod.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: farm-registry
+  namespace: s1
+spec:
+  replicas: 2                       # one pod can die without an outage
+  selector:
+    matchLabels: { app: farm-registry }
+  template:
+    metadata:
+      labels: { app: farm-registry }
+    spec:
+      serviceAccountName: farm-registry
+      containers:
+        - name: farm-registry
+          image: s1/farm-registry:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: metrics, containerPort: 8000 }
+          readinessProbe:            # on GKE also the load balancer's health check
+            httpGet: { path: /healthz, port: http }   # includes "can I reach the database?"
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /livez, port: http }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 256Mi }
