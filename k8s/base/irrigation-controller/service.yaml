@@ -1,0 +1,14 @@
+# One stable name (http://irrigation-controller) in front of all Irrigation Controller pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: irrigation-controller
+  namespace: s1
+  labels: { app: irrigation-controller }
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'   # GKE: the load balancer sends traffic straight to pods
+spec:
+  selector: { app: irrigation-controller }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+    - { name: metrics, port: 8000, targetPort: metrics }

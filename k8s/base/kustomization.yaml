@@ -1,6 +1,7 @@
-# The list of manifests that make up our app (what ArgoCD deploys on GKE).
+# The list of manifests that make up our app, independent of where it runs.
 # Laptop version: k8s/local/ (adds metrics-server, a localhost entry point, file membership).
-# ArgoCD (Person 1) should point at this folder: k8s/base
+# GKE version:    k8s/gke/   (adds registry images, Workload Identity, secrets, public Ingress);
+#                 ArgoCD tracks k8s/gke.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -14,4 +15,13 @@ resources:
   - partition-manager/deployment.yaml
   - partition-manager/hpa.yaml
   - partition-manager/pdb.yaml
+  - farm-registry/serviceaccount.yaml
+  - farm-registry/service.yaml
+  - farm-registry/deployment.yaml
+  - sensor-registry/serviceaccount.yaml
+  - sensor-registry/service.yaml
+  - sensor-registry/deployment.yaml
+  - irrigation-controller/serviceaccount.yaml
+  - irrigation-controller/service.yaml
+  - irrigation-controller/deployment.yaml
   # - telemetry-ingestion/hpa.yaml   # enable when Person 2's Deployment exists
