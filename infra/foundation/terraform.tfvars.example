@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+project_id = "your-project-id"
+region     = "us-central1"
+zone       = "us-central1-a"
+
+# Teammates (their Google account e-mails). Kept out of git on purpose.
+team_members = [
+  # "user:mrudul@example.com",
+  # "user:person2@example.com",
+]
+
+# Set to "NEVER" to stop Cloud SQL between work sessions (data is kept).
+sql_activation_policy = "ALWAYS"

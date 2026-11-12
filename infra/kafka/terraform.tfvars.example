@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+# The Aiven API token goes in the environment, not here:  export AIVEN_TOKEN=...
+project_id    = "your-project-id"
+region        = "us-central1"
+aiven_project = "your-aiven-project"
+
+team_members = [
+  # "user:someone@example.com",
+]
