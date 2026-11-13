@@ -3,6 +3,7 @@
 project_id    = "your-project-id"
 region        = "us-central1"
 aiven_project = "your-aiven-project"
+# cloud_name  = "google-us-east1"   # optional: default picks a cloud that offers the plan
 
 team_members = [
   # "user:someone@example.com",

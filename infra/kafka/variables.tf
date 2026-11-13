@@ -18,6 +18,18 @@ variable "service_name" {
   default = "s1-kafka"
 }
 
+variable "cloud_name" {
+  description = "Aiven cloud for the service. null = the first of preferred_clouds that offers the plan."
+  type        = string
+  default     = null
+}
+
+variable "preferred_clouds" {
+  description = "Tried in order, nearest to GKE/Dataproc (Iowa) first. The free plan is only offered on DigitalOcean (do-*)."
+  type        = list(string)
+  default     = ["google-us-central1", "google-us-east1", "do-nyc", "do-tor", "do-sfo"]
+}
+
 variable "plan" {
   description = "free-0 = Aiven free tier (no card): 5 topics x 2 partitions, ~250 KiB/s, powers off after 24 h idle."
   type        = string
@@ -25,8 +37,9 @@ variable "plan" {
 }
 
 variable "kafka_version" {
-  type    = string
-  default = "4.0"
+  description = "null = Aiven's current default for the plan (pinned versions go out of support; the free plan rejected 4.0)."
+  type        = string
+  default     = null
 }
 
 variable "topics" {
