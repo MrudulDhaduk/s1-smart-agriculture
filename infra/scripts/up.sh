@@ -18,4 +18,5 @@ eval "$(terraform -chdir=cluster output -raw get_credentials)"
 echo
 echo "ArgoCD UI:       $(terraform -chdir=platform output -raw argocd_ui)"
 echo "ArgoCD password: $(terraform -chdir=platform output -raw argocd_password)"
-echo "Public URL:      kubectl -n s1 get ingress s1-public   (address appears after ~5 min)"
+echo "Public URL:      kubectl -n s1 get ingress s1-public"
+echo "                 (address after ~5 min; for a few more minutes some paths may still get Google's 404 page)"
