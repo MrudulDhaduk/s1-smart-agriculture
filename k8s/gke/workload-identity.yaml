@@ -32,3 +32,11 @@ metadata:
   namespace: s1
   annotations:
     iam.gke.io/gcp-service-account: s1-irrigation-controller@s1-agri-ams-686974.iam.gserviceaccount.com  # Firestore, Pub/Sub
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: farm-analytics
+  namespace: s1
+  annotations:
+    iam.gke.io/gcp-service-account: s1-farm-analytics@s1-agri-ams-686974.iam.gserviceaccount.com  # Firestore
