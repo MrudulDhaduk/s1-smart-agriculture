@@ -18,8 +18,8 @@ patches:
 
 # One line per image so tools/build_push.sh can update newTag with sed.
 images:
-  - { name: s1/partition-manager, newName: us-central1-docker.pkg.dev/s1-agri-ams-686974/s1/partition-manager, newTag: "unset" }
-  - { name: s1/sensor-store, newName: us-central1-docker.pkg.dev/s1-agri-ams-686974/s1/sensor-store, newTag: "unset" }
-  - { name: s1/farm-registry, newName: us-central1-docker.pkg.dev/s1-agri-ams-686974/s1/farm-registry, newTag: "unset" }
-  - { name: s1/sensor-registry, newName: us-central1-docker.pkg.dev/s1-agri-ams-686974/s1/sensor-registry, newTag: "unset" }
-  - { name: s1/irrigation-controller, newName: us-central1-docker.pkg.dev/s1-agri-ams-686974/s1/irrigation-controller, newTag: "unset" }
+  - { name: s1/partition-manager, newName: us-central1-docker.pkg.dev/s1-agri-ams-686974/s1/partition-manager, newTag: "2877b49b0f" }
+  - { name: s1/sensor-store, newName: us-central1-docker.pkg.dev/s1-agri-ams-686974/s1/sensor-store, newTag: "2877b49b0f" }
+  - { name: s1/farm-registry, newName: us-central1-docker.pkg.dev/s1-agri-ams-686974/s1/farm-registry, newTag: "2877b49b0f" }
+  - { name: s1/sensor-registry, newName: us-central1-docker.pkg.dev/s1-agri-ams-686974/s1/sensor-registry, newTag: "2877b49b0f" }
+  - { name: s1/irrigation-controller, newName: us-central1-docker.pkg.dev/s1-agri-ams-686974/s1/irrigation-controller, newTag: "2877b49b0f" }
