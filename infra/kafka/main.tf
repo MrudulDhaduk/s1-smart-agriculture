@@ -1,12 +1,41 @@
 # Managed Kafka on Aiven (task e allows a managed Kafka outside GCP). Reached over the public
 # internet with TLS: GKE nodes and the Dataproc VM have public IPs, so no NAT or peering.
+
+# Which clouds offer the chosen plan for this project. Without an explicit cloud, Aiven would use
+# the project's default cloud, which may not offer the free plan at all ("Invalid cloud").
+data "aiven_service_plan_list" "kafka" {
+  project      = var.aiven_project
+  service_type = "kafka"
+}
+
+locals {
+  plan_clouds = sort(flatten([
+    for p in data.aiven_service_plan_list.kafka.service_plans :
+    p.regions != null ? keys(p.regions) : [] if p.service_plan == var.plan
+  ]))
+  # First preferred cloud that offers the plan (closest to GKE/Dataproc in us-central1), else any.
+  cloud_name = var.cloud_name != null ? var.cloud_name : try(
+    [for c in var.preferred_clouds : c if contains(local.plan_clouds, c)][0],
+    local.plan_clouds[0],
+    "",
+  )
+}
+
 resource "aiven_kafka" "s1" {
   project      = var.aiven_project
   service_name = var.service_name
-  plan         = var.plan # cloud_name omitted: the free tier picks the cloud itself
+  plan         = var.plan
+  cloud_name   = local.cloud_name
 
   kafka_user_config {
     kafka_version = var.kafka_version
+  }
+
+  lifecycle {
+    precondition {
+      condition     = contains(local.plan_clouds, local.cloud_name)
+      error_message = "Plan ${var.plan} is not offered in cloud '${local.cloud_name}' for this project. Offered: ${join(", ", local.plan_clouds)}"
+    }
   }
 }
 
