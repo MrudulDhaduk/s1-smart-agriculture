@@ -96,7 +96,7 @@ public final class FlinkJob {
         DataStream<Event> unifiedReadings = readings.map(r -> Event.from(r)).returns(TypeInformation.of(Event.class));
         DataStream<Event> unifiedIrrigation = irrigation.map(i -> Event.from(i)).returns(TypeInformation.of(Event.class));
         return unifiedReadings.union(unifiedIrrigation).keyBy(e -> e.farmId)
-                .window(TumblingEventTimeWindows.of(Time.minutes(1)))
+                .window(TumblingEventTimeWindows.of(Time.minutes(1))).allowedLateness(Time.milliseconds(0))
                 .aggregate(new FarmAggregate(), new BuildSummary());
     }
 
