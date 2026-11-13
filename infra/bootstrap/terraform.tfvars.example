@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+project_id = "your-project-id"
+region     = "us-central1"
+
+# Optional: budget alerts. Billing > Account management shows the ID and the currency.
+billing_account_id = ""
+budget_amount      = 50
+budget_currency    = "USD"

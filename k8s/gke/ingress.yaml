@@ -1,0 +1,19 @@
+# The public URL: one GKE Ingress = one external HTTP load balancer for all REST services.
+# The paths don't overlap, so no rewriting is needed. Address: kubectl -n s1 get ingress s1-public
+# Health checks come from each Deployment's readinessProbe (/healthz).
+# Person 2: add "- path: /readings" for Telemetry Ingestion here.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: s1-public
+  namespace: s1
+  # No ingress class set: GKE's built-in controller provisions an external Application Load Balancer.
+spec:
+  rules:
+    - http:
+        paths:
+          - { path: /farms, pathType: Prefix, backend: { service: { name: farm-registry, port: { number: 80 } } } }
+          - { path: /plots, pathType: Prefix, backend: { service: { name: farm-registry, port: { number: 80 } } } }
+          - { path: /crops, pathType: Prefix, backend: { service: { name: farm-registry, port: { number: 80 } } } }
+          - { path: /sensors, pathType: Prefix, backend: { service: { name: sensor-registry, port: { number: 80 } } } }
+          - { path: /irrigation, pathType: Prefix, backend: { service: { name: irrigation-controller, port: { number: 80 } } } }

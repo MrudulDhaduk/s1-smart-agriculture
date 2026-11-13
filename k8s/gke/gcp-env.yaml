@@ -1,0 +1,53 @@
+# Switch Person 1's services from their laptop stand-ins to the GCP services.
+#   Secret gcp-config    SQL_INSTANCE_CONNECTION_NAME, ALERTS_TOPIC, GOOGLE_CLOUD_PROJECT, ARCHIVE_BUCKET
+#   Secret kafka-client  KAFKA_BOOTSTRAP_SERVERS, KAFKA_SECURITY_PROTOCOL, KAFKA_SSL_*_PEM (Aiven)
+# Both are created by External Secrets (external-secrets.yaml); until they exist the pods wait
+# in CreateContainerConfigError and then start on their own.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: farm-registry
+  namespace: s1
+spec:
+  template:
+    spec:
+      containers:
+        - name: farm-registry
+          envFrom:
+            - secretRef: { name: gcp-config }
+          env:
+            - { name: DB_NAME, value: farm_registry }
+            - { name: DB_IAM_USER, value: s1-farm-registry@s1-agri-ams-686974.iam }   # IAM login, no password
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sensor-registry
+  namespace: s1
+spec:
+  template:
+    spec:
+      containers:
+        - name: sensor-registry
+          envFrom:
+            - secretRef: { name: gcp-config }
+          env:
+            - { name: DB_NAME, value: sensor_registry }
+            - { name: DB_IAM_USER, value: s1-sensor-registry@s1-agri-ams-686974.iam }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: irrigation-controller
+  namespace: s1
+spec:
+  template:
+    spec:
+      containers:
+        - name: irrigation-controller
+          envFrom:
+            - secretRef: { name: gcp-config }
+            - secretRef: { name: kafka-client }
+          env:
+            - { name: STATE_BACKEND, value: firestore }
+            - { name: ALERTS_BACKEND, value: pubsub }
