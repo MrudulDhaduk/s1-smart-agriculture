@@ -111,7 +111,40 @@ def test_duplicate_delivery_does_not_reset_document_but_still_archives(clients):
     clients.doc.create.side_effect = AlreadyExists("duplicate")
     main.handle_alert(event_for(alert()))
     assert clients.doc.create.call_count == 1
+    assert clients.doc.create.call_args.args[0]["status"] == "open"
+    assert isinstance(clients.doc.create.call_args.args[0]["received_at_ms"], int)
     clients.blob.upload_from_string.assert_called_once()
+
+
+def test_retry_after_archive_failure_archives_even_when_firestore_already_exists(clients):
+    body = alert()
+    saved_document = {}
+
+    def create_once(data):
+        if saved_document:
+            raise AlreadyExists("duplicate")
+        saved_document.update(data)
+
+    clients.doc.create.side_effect = create_once
+    clients.blob.upload_from_string.side_effect = [RuntimeError("GCS unavailable"), None]
+
+    with pytest.raises(RuntimeError, match="GCS unavailable"):
+        main.handle_alert(event_for(body))
+    assert clients.doc.create.call_count == 1
+    first_document = dict(saved_document)
+    assert first_document["status"] == "open"
+    assert isinstance(first_document["received_at_ms"], int)
+    # Simulate an operator updating the alert before Pub/Sub's retry arrives.
+    saved_document["status"] = "closed"
+    first_document = dict(saved_document)
+
+    # The Pub/Sub retry sees the existing Firestore document, preserves it, and still
+    # proceeds to create the archive. Firestore create() never replaces saved_document.
+    main.handle_alert(event_for(body))
+    assert clients.doc.create.call_count == 2
+    assert saved_document == first_document
+    assert clients.blob.upload_from_string.call_count == 2
+    assert clients.blob.upload_from_string.call_args.kwargs["if_generation_match"] == 0
 
 
 def test_existing_archive_is_successful_idempotent_delivery(clients):
