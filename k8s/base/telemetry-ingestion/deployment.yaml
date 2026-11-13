@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry-ingestion
+  namespace: s1
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: telemetry-ingestion }
+  template:
+    metadata:
+      labels: { app: telemetry-ingestion }
+    spec:
+      terminationGracePeriodSeconds: 15
+      containers:
+        - name: telemetry-ingestion
+          image: s1/telemetry-ingestion:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: metrics, containerPort: 8000 }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /livez, port: http }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 256Mi }

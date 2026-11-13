@@ -23,3 +23,5 @@ images:
   - { name: s1/farm-registry, newName: us-central1-docker.pkg.dev/s1-agri-ams-686974/s1/farm-registry, newTag: "2877b49b0f" }
   - { name: s1/sensor-registry, newName: us-central1-docker.pkg.dev/s1-agri-ams-686974/s1/sensor-registry, newTag: "2877b49b0f" }
   - { name: s1/irrigation-controller, newName: us-central1-docker.pkg.dev/s1-agri-ams-686974/s1/irrigation-controller, newTag: "2877b49b0f" }
+  # Placeholder from the branch base; regenerate with tools/build_push.sh after committing this service.
+  - { name: s1/telemetry-ingestion, newName: us-central1-docker.pkg.dev/s1-agri-ams-686974/s1/telemetry-ingestion, newTag: "4ef61c3467eb" }
