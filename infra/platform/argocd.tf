@@ -4,9 +4,11 @@ resource "helm_release" "argocd" {
   name             = "argocd"
   namespace        = "argocd"
   create_namespace = true
-  repository       = "https://argoproj.github.io/argo-helm"
-  chart            = "argo-cd"
-  version          = "10.11.1" # ArgoCD v3.5.6
+  # OCI copy of the Argo charts on GitHub Container Registry: the classic chart repository serves
+  # its files from GitHub release assets, which reset connections repeatedly from our network.
+  repository = "oci://ghcr.io/argoproj/argo-helm"
+  chart      = "argo-cd"
+  version    = "10.11.1" # ArgoCD v3.5.6
 
   values = [yamlencode({
     dex           = { enabled = false } # no SSO: log in as admin through kubectl port-forward
@@ -127,7 +129,7 @@ locals {
 resource "helm_release" "applications" {
   name       = "argocd-apps"
   namespace  = "argocd"
-  repository = "https://argoproj.github.io/argo-helm"
+  repository = "oci://ghcr.io/argoproj/argo-helm"
   chart      = "argocd-apps"
   version    = "2.0.7"
 

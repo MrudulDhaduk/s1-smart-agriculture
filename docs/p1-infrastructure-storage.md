@@ -15,7 +15,7 @@ One GCP project (`us-central1`, zone `us-central1-a`) plus a free Aiven Kafka se
 flowchart TB
     subgraph Internet
         U["Users / sensors"]
-        AIV["Aiven Kafka (free tier)<br/>topics readings · results · irrigation<br/>mutual TLS"]
+        AIV["Aiven Kafka (free plan, DigitalOcean do-nyc)<br/>topics readings · results · irrigation<br/>mutual TLS"]
     end
     subgraph GCP["GCP project · us-central1"]
         LB["External HTTP load balancer<br/>(GKE Ingress s1-public)"]
@@ -58,7 +58,7 @@ flowchart TB
 | Network | Own VPC + subnet with pod/service ranges, public node IPs, no Cloud NAT | Network defined in code; public IPs give internet access (Aiven, images) without NAT's hourly charge |
 | NetworkPolicy | Dataplane V2 (`ADVANCED_DATAPATH`) | Enforces Person 3's "only Partition Manager may reach Sensor Store" policy; without it GKE ignores NetworkPolicies |
 | Flink | Dataproc single node, image 2.2 (Flink 1.17), Component Gateway, idle auto-delete after 2 h | Managed Flink on YARN, smallest possible cluster; deletes itself if forgotten |
-| Kafka | Aiven free tier (`free-0`), created by Terraform | Managed, no cost; reached over TLS from GKE and Dataproc |
+| Kafka | Aiven free plan (`free-0`) on DigitalOcean New York (`do-nyc`), created by Terraform | Managed, no cost; reached over TLS from GKE and Dataproc. The free plan exists only on DigitalOcean clouds; New York is the nearest to Iowa |
 | Serverless | Cloud Run function (2nd gen) triggered by Pub/Sub via Eventarc | Scales to zero; runs only per alert |
 | Images | Artifact Registry `s1` with a cleanup policy | Private registry next to the cluster; keeps the newest 5 versions |
 | Secrets | Secret Manager → External Secrets Operator → Kubernetes Secrets | No secret in Git, no key files; rotation = new Secret Manager version |
@@ -99,6 +99,9 @@ Remote state in a private, versioned GCS bucket (`<project>-tfstate`, prefix per
 - Cloud SQL instance names are reserved for days after deletion → random suffix.
 - The Workload Identity pool exists only once a cluster does → the KSA→GSA bindings live in the `cluster` stack.
 - ArgoCD `Application` objects cannot be planned before ArgoCD's CRDs exist → created through the `argocd-apps` Helm chart.
+- Google's HTTP load balancer rejects a POST without `Content-Length` (411) → call `POST /irrigation/evaluate` with `curl -d ''`; a new Ingress needs ~5 min before every edge has the URL map (until then: Google's 404 page).
+- The Argo Helm charts' classic repository serves files from GitHub release assets, which kept resetting from our network → charts pulled from the OCI copy on `ghcr.io`.
+- Aiven: without `cloud_name` the service goes to the project's default cloud, which does not offer the free plan (`Invalid cloud`) → the stack lists the clouds that offer the plan (`aiven_service_plan_list`) and picks the nearest; a pinned Kafka version (`4.0`) was rejected → Aiven's default.
 
 ## 3. Task (d): GitOps with ArgoCD
 
@@ -141,6 +144,13 @@ Sensor readings themselves are on the Sensor Store nodes (Person 3's consistent-
 Water per decision: `area_m2 × (target − moisture) × root_depth_cm / 10` litres (1 % of 1 m² × 1 cm of soil = 0.1 L). A plot is watered at most once per 10 minutes; the claim is a Firestore transaction, so a restart or a second replica cannot water twice.
 
 All three are stateless Deployments with readiness/liveness probes, JSON logs (one object per line with `service`, `level`, `message`, `plot_id` where relevant) and Prometheus metrics on `:8000/metrics` (`http_requests_total`, `http_request_duration_seconds`, `irrigation_*`).
+
+**Verified on GKE (13 Nov), deployed only by ArgoCD from Git:** all 4 Applications Synced/Healthy; External Secrets copied
+`gcp-config` and `kafka-client` from Secret Manager; both registries logged into Cloud SQL with IAM (no password); through
+the public Ingress: seed 5 farms / 20 plots / 200 sensors, `pmctl write 2000` through the hash ring (ring membership read
+from Firestore), all 20 plots with 10/10 fresh readings over gRPC; the controller watered the 5 rice plots once
+(5 cooldown documents in Firestore, `COOLDOWN` afterwards), published 5 `DRY_SOIL` alerts to Pub/Sub and delivered
+5 events to Aiven Kafka over mutual TLS; one Cloud Logging query follows `farm1-plot2` across services.
 
 **Verified locally** (Docker Compose, no cloud): seed 5 farms / 20 plots / 200 sensors → `pmctl write 2000` through the hash ring → the controller reads them back over gRPC, waters the 4 rice plots once (cooldown on the second cycle) and the decisions arrive on Kafka `irrigation` keyed by plot.
 
