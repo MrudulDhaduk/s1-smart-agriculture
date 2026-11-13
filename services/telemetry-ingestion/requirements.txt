@@ -1,0 +1,7 @@
+fastapi==0.162.5
+uvicorn==0.54.0
+prometheus-client==0.26.0
+grpcio==1.85.1
+grpcio-tools==1.85.1
+protobuf==7.36.1
+confluent-kafka==2.16.1
