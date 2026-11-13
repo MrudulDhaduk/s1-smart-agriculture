@@ -17,3 +17,4 @@ spec:
           - { path: /crops, pathType: Prefix, backend: { service: { name: farm-registry, port: { number: 80 } } } }
           - { path: /sensors, pathType: Prefix, backend: { service: { name: sensor-registry, port: { number: 80 } } } }
           - { path: /irrigation, pathType: Prefix, backend: { service: { name: irrigation-controller, port: { number: 80 } } } }
+          - { path: /readings, pathType: Prefix, backend: { service: { name: telemetry-ingestion, port: { number: 80 } } } }
