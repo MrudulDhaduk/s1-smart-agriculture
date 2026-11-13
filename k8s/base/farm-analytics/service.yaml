@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: farm-analytics
+  namespace: s1
+  labels: { app: farm-analytics }
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+spec:
+  selector: { app: farm-analytics }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+    - { name: metrics, port: 8000, targetPort: metrics }
