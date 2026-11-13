@@ -1,0 +1,11 @@
+{
+  "event_id": "farm7-plot2-1762480000000",
+  "farm_id": "farm7",
+  "plot_id": "farm7-plot2",
+  "crop": "tomato",
+  "action": "WATER",
+  "moisture_pct": 18.2,
+  "target_pct": 35.0,
+  "water_litres": 80640.0,
+  "decided_at_ms": 1762480000000
+}
