@@ -24,4 +24,6 @@ resources:
   - irrigation-controller/serviceaccount.yaml
   - irrigation-controller/service.yaml
   - irrigation-controller/deployment.yaml
-  # - telemetry-ingestion/hpa.yaml   # enable when Person 2's Deployment exists
+  - telemetry-ingestion/service.yaml
+  - telemetry-ingestion/deployment.yaml
+  - telemetry-ingestion/hpa.yaml
