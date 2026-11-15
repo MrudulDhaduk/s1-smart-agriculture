@@ -117,6 +117,18 @@ services:
     ports: [ "8083:8080" ]
     depends_on: [ farm-registry, sensor-registry, partition-manager, kafka ]
 
+  # ---------- Person 2: sensor readings into the hash ring and Kafka ----------
+  telemetry-ingestion:
+    build: { context: ., dockerfile: services/telemetry-ingestion/Dockerfile }
+    image: s1/telemetry-ingestion
+    restart: unless-stopped
+    environment:
+      PARTITION_MANAGER_ADDR: partition-manager:50051
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_SECURITY_PROTOCOL: PLAINTEXT
+    ports: [ "8084:8080" ]
+    depends_on: [ partition-manager, kafka ]
+
 configs:
   postgres-init:
     content: |

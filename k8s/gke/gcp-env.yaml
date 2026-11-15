@@ -51,3 +51,16 @@ spec:
           env:
             - { name: STATE_BACKEND, value: firestore }
             - { name: ALERTS_BACKEND, value: pubsub }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry-ingestion
+  namespace: s1
+spec:
+  template:
+    spec:
+      containers:
+        - name: telemetry-ingestion
+          envFrom:
+            - secretRef: { name: kafka-client }
