@@ -15,6 +15,10 @@ GROUP = os.getenv("KAFKA_GROUP_ID", "farm-analytics")
 PROCESSED = Counter("farm_analytics_messages_total", "Kafka result processing", ["result"])
 
 
+class InvalidMessage(ValueError):
+    """A result payload failed validation before persistence was attempted."""
+
+
 class Result(BaseModel):
     model_config = ConfigDict(extra="forbid")
     farm_id: str = Field(min_length=1)
@@ -111,7 +115,7 @@ def parse_message(raw):
     try:
         return Result.model_validate_json(raw)
     except (ValidationError, ValueError, TypeError) as exc:
-        raise ValueError(str(exc)) from exc
+        raise InvalidMessage(str(exc)) from exc
 
 
 def process(raw, repository):
@@ -145,7 +149,7 @@ class KafkaWorker:
             try:
                 process(message.value(), self.repository)
                 PROCESSED.labels("processed").inc()
-            except ValueError as exc:
+            except InvalidMessage as exc:
                 # Invalid records are poison messages: record and commit so they cannot stall the partition.
                 PROCESSED.labels("invalid").inc()
                 log("error", "invalid results message", error=str(exc), topic=message.topic(), offset=message.offset())
@@ -158,7 +162,7 @@ class KafkaWorker:
                         process(message.value(), self.repository)
                         PROCESSED.labels("processed").inc()
                         break
-                    except ValueError as invalid:
+                    except InvalidMessage as invalid:
                         # A deterministic validation issue is poison data; commit it and resume.
                         PROCESSED.labels("invalid").inc()
                         log("error", "invalid results message", error=str(invalid), topic=message.topic(), offset=message.offset())

@@ -30,7 +30,7 @@ def test_valid_result_and_api():
 @pytest.mark.parametrize("change", [{"farm_id": ""}, {"window_end_ms": 1}, {"readings": -1},
                                     {"sensors": 121}, {"water_litres": -3}, {"unexpected": 1}])
 def test_invalid_result(change):
-    with pytest.raises(ValueError):
+    with pytest.raises(app.InvalidMessage):
         app.parse_message(json.dumps(payload(**change)))
 
 
@@ -81,7 +81,7 @@ def test_worker_retries_persistence_before_committing(monkeypatch):
         def apply(self, _):
             self.calls += 1
             if self.calls == 1:
-                raise RuntimeError("temporary Firestore failure")
+                raise ValueError("temporary Firestore failure")
             return True
     worker = app.KafkaWorker.__new__(app.KafkaWorker)
     worker.consumer, worker.repository, worker.running = FakeConsumer(), FlakyRepo(), True
