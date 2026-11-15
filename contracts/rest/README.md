@@ -8,6 +8,7 @@ inside the cluster use the Service names. Each service also serves its OpenAPI p
 | Farm Registry | `http://farm-registry` | `http://localhost:8081` | `/farms`, `/plots`, `/crops` |
 | Sensor Registry | `http://sensor-registry` | `http://localhost:8082` | `/sensors` |
 | Irrigation Controller | `http://irrigation-controller` | `http://localhost:8083` | `/irrigation` |
+| Telemetry Ingestion | `http://telemetry-ingestion` | `http://localhost:8084` | `/readings` |
 
 IDs follow the sensor naming already used by Partition Manager: farm `farm7`, plot `farm7-plot2`
 (always starts with its farm id), sensor `farm7-plot2-s3` (always starts with its plot id).
@@ -64,3 +65,33 @@ A control cycle also runs on its own every 30 s.
 
 `decision` is `WATER`, `OK`, `NO_DATA` (no fresh reading from any sensor) or `COOLDOWN` (watered in the
 last 10 minutes).
+
+## Telemetry Ingestion
+
+### `POST /readings`
+
+Accepts either one Reading JSON object or a non-empty batch object of the form `{"readings": [Reading, ...]}`.
+Each Reading must contain a non-empty `sensor_id` and an integer `timestamp_ms` greater than zero.
+Unknown fields are rejected. The other fields follow the wire Reading shape; omitted values use these
+defaults: `farm_id` and `plot_id` are empty strings, and `moisture_pct` and `temperature_c` are `0.0`.
+
+```json
+{
+  "sensor_id": "farm7-plot2-s3",
+  "farm_id": "farm7",
+  "plot_id": "farm7-plot2",
+  "moisture_pct": 23.4,
+  "temperature_c": 27.1,
+  "timestamp_ms": 1762480000000
+}
+```
+
+Every valid reading is written to Partition Manager and published as JSON to Kafka `readings`, keyed
+by `sensor_id`. A fully successful request returns `202` with `received`, `stored`, `published`,
+`failed`, `stored_not_published`, and `successful` counts. `successful` equals `published`.
+
+An invalid body or reading returns `422`. Processing continues for other readings in a batch if one
+fails. If any reading fails at Partition Manager or Kafka, the request returns `503` with the same
+counts and a `failures` array containing the affected `sensor_id`, failure `stage` (`partition_manager`
+or `kafka`), and an error description. A Kafka failure after storage is counted in both `failed` and
+`stored_not_published`; successful storage is not rolled back.
