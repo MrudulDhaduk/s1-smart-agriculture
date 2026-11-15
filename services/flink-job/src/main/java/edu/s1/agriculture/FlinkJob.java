@@ -122,7 +122,7 @@ public final class FlinkJob {
     }
     private static boolean finite(double n) { return Double.isFinite(n); }
     private static boolean blank(String s) { return s == null || s.trim().isEmpty(); }
-    private static byte[] serializeSummary(Summary summary) {
+    static byte[] serializeSummary(Summary summary) {
         try { return JSON.writeValueAsBytes(summary); }
         catch (Exception e) { throw new IllegalArgumentException("Could not serialize farm summary", e); }
     }
@@ -151,13 +151,16 @@ public final class FlinkJob {
         public Acc getResult(Acc a){return a;} public Acc merge(Acc a, Acc b){a.readings+=b.readings;a.watering+=b.watering;a.sum+=b.sum;a.min=Math.min(a.min,b.min);a.max=Math.max(a.max,b.max);a.water+=b.water;a.sensors.addAll(b.sensors);return a;}
     }
     public static class Summary {
-        public String farm_id; public long window_start_ms, window_end_ms, readings, sensors, watering_events; public double avg_moisture_pct, min_moisture_pct, max_moisture_pct, water_litres;
+        public String farm_id; public long window_start_ms, window_end_ms, readings, sensors, watering_events; public Double avg_moisture_pct, min_moisture_pct, max_moisture_pct; public double water_litres;
         public Summary() {}
     }
     public static class BuildSummary extends ProcessWindowFunction<Acc, Summary, String, TimeWindow> {
         public void process(String farm, Context c, Iterable<Acc> values, Collector<Summary> out) {
             Acc a=values.iterator().next(); Summary s=new Summary(); s.farm_id=farm;s.window_start_ms=c.window().getStart();s.window_end_ms=c.window().getEnd();s.readings=a.readings;s.sensors=a.sensors.size();s.watering_events=a.watering;s.water_litres=a.water;
-            s.avg_moisture_pct=a.readings==0?0:a.sum/a.readings;s.min_moisture_pct=a.readings==0?0:a.min;s.max_moisture_pct=a.readings==0?0:a.max;out.collect(s);
+            if (a.readings > 0) {
+                s.avg_moisture_pct=a.sum/a.readings;s.min_moisture_pct=a.min;s.max_moisture_pct=a.max;
+            }
+            out.collect(s);
         }
     }
 }
