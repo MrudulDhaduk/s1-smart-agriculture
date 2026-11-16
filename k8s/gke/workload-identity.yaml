@@ -1,0 +1,34 @@
+# Workload Identity: "this Kubernetes service account may act as this Google service account".
+# The matching IAM binding is made by Terraform (infra/cluster/workload_identity.tf), and each
+# Google service account has only the roles its service needs (infra/foundation/iam.tf).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: partition-manager
+  namespace: s1
+  annotations:
+    iam.gke.io/gcp-service-account: s1-partition-manager@s1-agri-ams-686974.iam.gserviceaccount.com   # Firestore
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: farm-registry
+  namespace: s1
+  annotations:
+    iam.gke.io/gcp-service-account: s1-farm-registry@s1-agri-ams-686974.iam.gserviceaccount.com       # Cloud SQL
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sensor-registry
+  namespace: s1
+  annotations:
+    iam.gke.io/gcp-service-account: s1-sensor-registry@s1-agri-ams-686974.iam.gserviceaccount.com     # Cloud SQL
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: irrigation-controller
+  namespace: s1
+  annotations:
+    iam.gke.io/gcp-service-account: s1-irrigation-controller@s1-agri-ams-686974.iam.gserviceaccount.com  # Firestore, Pub/Sub

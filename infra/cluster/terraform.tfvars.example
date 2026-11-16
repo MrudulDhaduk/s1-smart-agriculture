@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+project_id = "your-project-id"
+region     = "us-central1"
+zone       = "us-central1-a"
+
+# Cost levers
+machine_type    = "e2-standard-2"
+min_nodes       = 2
+max_nodes       = 4
+spot_nodes      = false
+enable_dataproc = true # false when nobody works on Flink
