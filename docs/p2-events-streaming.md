@@ -1,6 +1,6 @@
 # Person 2: Events and Streaming
 
-**Owner:** Person 2 (name and ID are still missing from `task_divison.txt`) · **Tasks:** (b) Serverless function + REST/gRPC/queues · (e) Kafka + Flink stream processing
+**Owner:** Pranav Harresh Vishwanathan · **Tasks:** (b) Serverless function + REST/gRPC/queues · (e) Kafka + Flink stream processing
 **Services:** Telemetry Ingestion · Alert Service · Flink job · Farm Analytics
 
 > **In one line:** readings pass through the partitioned storage path and Kafka, Flink combines sensor and irrigation events into farm windows, Farm Analytics persists the results, and Pub/Sub alerts are persisted and archived separately.
@@ -19,7 +19,7 @@ flowchart LR
     F -->|Kafka results| R[(Kafka)]
     R --> FA[Farm Analytics]
     FA --> FS[(Firestore farm_summaries)]
-    U[User] -->|GET /analytics/farms/{farm_id}| FA
+    U[User] -->|"GET /analytics/farms/{farm_id}"| FA
     IC -->|Pub/Sub alerts| PS[Pub/Sub]
     PS --> AF[Alert Service Cloud Run function]
     AF -->|alert document| FA2[(Firestore alerts)]
