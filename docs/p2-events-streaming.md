@@ -19,7 +19,7 @@ flowchart LR
     F -->|Kafka results| R[(Kafka)]
     R --> FA[Farm Analytics]
     FA --> FS[(Firestore farm_summaries)]
-    U[User] -->|GET /analytics/farms/{farm_id}| FA
+    U[User] -->|"GET /analytics/farms/{farm_id}"| FA
     IC -->|Pub/Sub alerts| PS[Pub/Sub]
     PS --> AF[Alert Service Cloud Run function]
     AF -->|alert document| FA2[(Firestore alerts)]
