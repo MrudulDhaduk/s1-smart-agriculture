@@ -1,0 +1,41 @@
+# Run the Partition Manager load test INSIDE the cluster (GKE).
+#
+# Why: `kubectl port-forward` sends every request to ONE pod, so pods added by the HPA would
+# get no traffic. From inside the cluster the Service spreads the connections over all pods.
+#
+#   kubectl create configmap k6-script    -n s1 --from-file=loadtest/pm-write.js
+#   kubectl create configmap k6-contracts -n s1 --from-file=contracts/partition_manager.proto --from-file=contracts/reading.proto
+#   kubectl apply -f loadtest/k6-gke.yaml
+#   kubectl logs -n s1 job/k6-pm-write -f          # k6 output; watch scaling: kubectl get hpa -n s1 -w
+#
+# Re-run:   kubectl delete job k6-pm-write -n s1; kubectl apply -f loadtest/k6-gke.yaml
+# Clean up: kubectl delete job k6-pm-write -n s1; kubectl delete configmap k6-script k6-contracts -n s1
+#
+# pm-write.js does client.load(['../contracts'], ...), so the script is mounted at
+# /work/loadtest and the .proto files at /work/contracts.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k6-pm-write
+  namespace: s1
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels: { app: k6 }
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: k6
+          image: grafana/k6:0.54.0
+          args: ["run", "-e", "PM_ADDR=partition-manager.s1.svc.cluster.local:50051", "/work/loadtest/pm-write.js"]
+          resources:
+            requests: { cpu: 500m, memory: 256Mi }
+            limits: { memory: 512Mi }
+          volumeMounts:
+            - { name: script, mountPath: /work/loadtest }
+            - { name: contracts, mountPath: /work/contracts }
+      volumes:
+        - { name: script, configMap: { name: k6-script } }
+        - { name: contracts, configMap: { name: k6-contracts } }
