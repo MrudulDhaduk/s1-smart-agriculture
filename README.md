@@ -8,7 +8,7 @@ CS/SS G527 Cloud Computing group assignment (BITS Pilani, I Sem 2025-26).
 
 | | Person 1: Infrastructure & Storage | Person 2: Events & Streaming | Person 3: Concept, Scaling & Monitoring |
 |---|---|---|---|
-| **Name** | _TODO_ | _TODO_ | Dhaduk Mrudul |
+| **Name** | Saravanasudharsan S | Pranav Harresh Vishwanathan | Dhaduk Mrudul |
 | **Tasks** | (a) Terraform · (d) ArgoCD GitOps · (g) 3 storage products | (b) Serverless + REST/gRPC/queues · (e) Kafka + Flink | (f) Consistent hashing · (c) GKE + HPA + k6 · (h) Prometheus, Grafana, logging |
 | **Services** | Farm Registry · Sensor Registry · Irrigation Controller | Telemetry Ingestion · Alert Service · Farm Analytics | Partition Manager · Sensor Store |
 | **Folders** | `infra/` · `services/farm-registry/` · `services/sensor-registry/` · `services/irrigation-controller/` | `services/telemetry-ingestion/` · `services/alert-function/` · `services/farm-analytics/` · `services/flink-job/` | `services/partition-manager/` · `services/sensor-store/` · `observability/` · `loadtest/` |
@@ -18,20 +18,23 @@ Shared by everyone: `contracts/`, `k8s/` (each person adds their own services' m
 ## How the services connect
 
 ```
-Sensors / simulator
-      │ REST
-      ▼
-Telemetry Ingestion (P2) ──Kafka "readings"──► Flink job (P2, Dataproc)
-      │ gRPC                                      │ 1-min window per farm
-      ▼                                           ▼
-Partition Manager (P3) ── hash ring ──►   Kafka "results" ──► Farm Analytics (P2) ──► Firestore
-      │ gRPC (to 2–3 replica nodes)                └─ dry-soil event ─► Alert Service (P2, Cloud Function)
-      ▼
-Sensor Store nodes (P3)  ◄── gRPC ── Irrigation Controller (P1)
+Readings path
+  Sensors / simulator ──REST POST /readings──► Telemetry Ingestion (P2)
+  Telemetry Ingestion ──gRPC WriteReading────► Partition Manager (P3) ──gRPC──► 3 of 4 Sensor Store nodes (P3)
+                                               (consistent-hash ring, membership in Firestore)
+  Telemetry Ingestion ──Kafka "readings"─────► Flink job (P2, Dataproc, 1-min window per farm)
 
-Farm Registry / Sensor Registry (P1) ── REST, public URL ── users  (Cloud SQL)
-Cloud Storage bucket: raw/bulk sensor uploads (triggers the serverless path)
-Everything: Terraform + ArgoCD (P1) · HPA, load test, Grafana and logs (P3)
+Irrigation path
+  Irrigation Controller (P1) ──REST──────────► Farm Registry / Sensor Registry (P1, Cloud SQL)
+  Irrigation Controller      ──gRPC GetLatest► Partition Manager (P3)
+  Irrigation Controller      ──Kafka "irrigation"──► Flink job
+  Irrigation Controller      ──Pub/Sub "alerts"───► Alert Service (P2, Cloud Run function) ──► Firestore + GCS archive
+
+Results path
+  Flink job ──Kafka "results"──► Farm Analytics (P2) ──► Firestore, served at GET /analytics/farms/{id}
+
+Public URL: one GKE Ingress (/farms /plots /crops /sensors /irrigation /readings /analytics)
+Everything: Terraform + ArgoCD (P1) · HPA, k6 load test, Grafana and Cloud Logging (P3)
 ```
 
 ## Repo layout
@@ -53,7 +56,7 @@ task_divison.txt required deliverable (ID numbers, names, tasks)
 2. **Stay in your own folders.** Touching someone else's folder means asking them first.
 3. **Never push to `main`.** Create a branch, open a pull request, and get 1 approval. ArgoCD deploys from `main`.
 4. **Develop locally first** with docker-compose. Use the cloud only for integration, to save credits.
-5. **Tear down cloud resources whenever you stop working** (`terraform destroy`). We have only $50 each.
+5. **Tear down cloud resources whenever you stop working** (`infra/scripts/down.sh`). The whole project runs on one $50 credit.
 6. **Never commit secrets** (keys, `.json` service-account files, `.env`). `.gitignore` blocks the common ones.
 
 ### Everyday git workflow
