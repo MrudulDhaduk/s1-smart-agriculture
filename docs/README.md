@@ -1,10 +1,12 @@
 # docs/: design document
 
-Required sections (from the assignment): system overview, cloud deployment architecture, microservice architecture diagrams, microservice responsibilities, interconnection mechanisms, and the rationale behind design choices.
+The submitted design document is **one PDF built from these files**: `python tools/build_design_pdf.py design-document.pdf` (needs `pip install markdown` and Chrome/Chromium).
 
-Each person writes their own section:
-- `p1-infrastructure-storage.md` ✅ (cloud deployment architecture, Terraform, GitOps, storage, Person 1's services)
-- `p2-events-streaming.md`
-- `p3-concept-scaling-monitoring.md` ✅ (with `p3-demo-script.md`, the live demo walkthrough, and `p3-viva-runbook.md`, the full step-by-step viva runbook)
+| File | Content |
+|---|---|
+| `design-document.md` | Shared part: team, system overview, microservice architecture diagram, responsibilities, interconnection mechanisms, rationale, requirement-by-requirement evidence |
+| `p1-infrastructure-storage.md` | Part A (Person 1): cloud deployment architecture, Terraform, GitOps, storage, Farm/Sensor Registry, Irrigation Controller |
+| `p2-events-streaming.md` | Part B (Person 2): Telemetry Ingestion, Kafka, Flink, Farm Analytics, Alert Service |
+| `p3-concept-scaling-monitoring.md` | Part C (Person 3): consistent hashing, Partition Manager, Sensor Store, GKE, HPA, k6, observability |
 
-Shared: `p3-design-decisions.md` (Person 3's decisions and what teammates need to do), `images/` (figures; `images/make_figures.py` redraws the charts).
+Not in the PDF: `p3-demo-script.md` (live demo walkthrough), `p3-viva-runbook.md` (step-by-step viva runbook), `p3-design-decisions.md` (Person 3's working notes). `images/` holds the figures; `images/make_figures.py` redraws the charts.
