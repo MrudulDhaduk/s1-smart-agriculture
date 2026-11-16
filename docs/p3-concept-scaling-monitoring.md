@@ -251,6 +251,36 @@ Settings: `minReplicas: 2` (one pod can fail without an outage), `maxReplicas: 6
 
 ![Grafana during the load test: traffic and scaling](images/grafana-load-test-traffic-scaling.png)
 
+### 4.4 The same test on GKE (16 Nov 2026)
+
+The same `pm-write.js` ran on the GKE cluster as a Kubernetes Job (`loadtest/k6-gke.yaml`), inside the cluster, because `kubectl port-forward` would send all traffic to one pod and the pods added by the HPA would get none.
+
+| Result (GKE, project `s1-agri-ams-686974`) | Value |
+|---|---|
+| Writes | **42,401 in 5 minutes**, about 141 per second (Grafana peak about 150 per second), each stored on 3 nodes |
+| Failed writes | **0** (100% of 84,802 checks passed; 0 interrupted iterations) |
+| Latency | p95 **777 ms**, p90 599 ms, average 200 ms, maximum 2.03 s |
+| k6 thresholds | both passed (`checks` above 95%, p95 below 1 s) |
+
+Latency is higher than on the laptop (p95 377 ms) because the GKE nodes are small (e2-standard-2), the extra pods take a short time to start, and every write goes to Sensor Store pods on other machines. The p99 in Grafana reached about 2 s during the first seconds of the ramp, while the new pods were starting.
+
+**HPA on GKE, as recorded by `kubectl get hpa -w`:**
+
+| Moment | Partition Manager | Telemetry Ingestion |
+|---|---|---|
+| Idle | 2-4% CPU, 2 pods | 6% CPU, 2 pods |
+| k6 load arrives | **109%**, then **252-292%** CPU | not loaded |
+| Under k6 load | **2 → 5 → 6 pods** (cap), CPU 100-140% | 2 pods |
+| 77 minutes in, after k6 | back to 2 pods, CPU 2% | 2 pods |
+| Second test: `tools/simulate_sensors.py` through the public URL | scaled again, **up to 5 pods** (59% CPU at 4) | **74%** CPU, scaled **2 → 3 → 4 pods** |
+| After the second test | back to **2 pods** | back to **2 pods** |
+
+- The first test loads Partition Manager directly. The second sends readings through the public load balancer to Telemetry Ingestion, which writes each reading to Partition Manager, so **both** HPAs react: the Telemetry Ingestion HPA is evidence for the second autoscaler, and Partition Manager scales a second time as a side effect.
+- Telemetry Ingestion only reached 74% CPU after the load generators were widened (7 processes in Cloud Shell, batches of 50). A single Python process could not drive it above 33%, so the generator, not the service, was the limit at first.
+- Grafana showed 0% errors, about 150 requests per second at peak, and four almost identical write rates per ring node. Sensors stored per node were 3.52K, 3.77K, 3.80K and 3.91K (about 5% spread). Ring version 1, 4 nodes, 0 rebalance events and 0 restarts.
+
+**Node failure on GKE.** `pmctl where farm1-plot1-s1` gave `sensor-store-1` (primary), `sensor-store-3` and `sensor-store-2`. While readings were being sent, the primary pod was deleted. `pmctl latest farm1-plot1-s1` still returned a reading (moisture 38.6%), because Partition Manager reads from the next replica. Kubernetes recreated `sensor-store-1` (same name, same disk) and it was `1/1 Running` after about 69 seconds. Partition Manager logged **213** `replica write failed` warnings while the node was away.
+
 ---
 
 ## 5. Task (h): monitoring, dashboards and logs
@@ -288,7 +318,9 @@ During the load test the four ring nodes received almost identical write rates (
 
 ### 5.3 Centralised logging
 
-Every service writes **one JSON object per line** to stdout, with fields such as `service`, `level`, `message`, `sensor_id` and `node`. On GKE, **Cloud Logging** collects these automatically from the pods, and from the two components that run outside the cluster: the Flink job on Dataproc and the Alert Service Cloud Function. One query can then follow a sensor across every service.
+Every service writes **one JSON object per line** to stdout, with fields such as `service`, `level`, `message`, `sensor_id` and `node`. On GKE, **Cloud Logging** collects these automatically from the pods, and from the two components that run outside the cluster: the Flink job on Dataproc and the Alert Service Cloud Function. One query can then search every service together.
+
+**Seen on GKE:** the query `resource.type="k8s_container" resource.labels.namespace_name="s1" jsonPayload.service:*` returned **1,541 entries in 3 hours** from the services in the `s1` namespace (the JSON fields `level`, `message` and `service` are indexed automatically). `sensor_id` is only written when something goes wrong (a failed replica write, or a sensor that could not be copied during a rebalance), not on every successful write, so a search for one sensor finds failures, not normal traffic. The query `jsonPayload.message="replica write failed"` returned the **213** warnings from the node-failure test, each with the `node` and `sensor_id`. Following a sensor through the normal write path would need an INFO line per write, which was left out to keep log volume low.
 
 Loki was the alternative. It was rejected because it would need extra log shipping from Dataproc and Cloud Functions. Dataproc only sends Flink's logs to Cloud Logging when two cluster properties are set at creation (`dataproc:dataproc.logging.stackdriver.job.driver.enable` and `…job.yarn.container.enable`); Person 1 sets them in Terraform.
 
@@ -332,6 +364,11 @@ Loki was the alternative. It was rejected because it would need extra log shippi
 | Partition Manager and Sensor Store, docker-compose | ✅ running locally |
 | Kubernetes manifests, HPA, k6 load test | ✅ verified on Docker Desktop Kubernetes (HPA 2 → 6 → 2) |
 | Prometheus, Grafana dashboard, ServiceMonitors | ✅ verified on Docker Desktop Kubernetes |
-| Deployment on GKE through ArgoCD, Firestore membership | ⏳ after Person 1's GKE cluster and Firestore exist |
-| Cloud Logging including the Flink job | ⏳ needs GKE, Dataproc and the Dataproc logging properties |
-| HPA on Telemetry Ingestion | ⏳ manifest ready (`k8s/base/telemetry-ingestion/hpa.yaml`); enabled when Person 2's Deployment exists |
+| Deployment on GKE through ArgoCD, Firestore membership | ✅ verified 16 Nov 2026: 14 pods Running, ring version 1 with 4 nodes read through Partition Manager |
+| k6 load test and HPA on GKE | ✅ 42,401 writes, 0 failed, p95 777 ms; Partition Manager 2 → 6 → 2 (section 4.4) |
+| HPA on Telemetry Ingestion | ✅ 74% CPU, 2 → 3 → 4 → 2 pods under traffic through the public URL (section 4.4) |
+| Prometheus and Grafana on GKE | ✅ dashboard populated on GKE (reached through Cloud Shell Web Preview, which needed `GF_SECURITY_CSRF_TRUSTED_ORIGINS` on the Grafana pod) |
+| Node failure on GKE | ✅ primary deleted, read still served, pod back in about 69 s |
+| Cloud Logging for the GKE pods | ✅ 1,541 JSON entries; 213 replica-failure warnings found by one query (section 5.3) |
+| Cloud Logging including the Flink job and the Alert function | ⏳ not checked in this session (needs Person 2's Flink job to have run on Dataproc) |
+| Node join (rebalance) on GKE | ⏳ not run on GKE; measured on the laptop cluster (section 3.4) |
