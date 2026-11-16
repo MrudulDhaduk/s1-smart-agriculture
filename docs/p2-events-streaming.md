@@ -1,6 +1,6 @@
 # Person 2: Events and Streaming
 
-**Owner:** Person 2 (name and ID are still missing from `task_divison.txt`) · **Tasks:** (b) Serverless function + REST/gRPC/queues · (e) Kafka + Flink stream processing
+**Owner:** Pranav Harresh Vishwanathan (`H20260074P`), Person 2 · **Tasks:** (b) Serverless function + REST/gRPC/queues · (e) Kafka + Flink stream processing
 **Services:** Telemetry Ingestion · Alert Service · Flink job · Farm Analytics
 
 > **In one line:** readings pass through the partitioned storage path and Kafka, Flink combines sensor and irrigation events into farm windows, Farm Analytics persists the results, and Pub/Sub alerts are persisted and archived separately.
@@ -143,6 +143,6 @@ This verifies the reported Telemetry Ingestion → Kafka `readings` → Flink �
 |---|---|
 | Telemetry Ingestion, Alert Service, Flink, Farm Analytics source and local tests | Implemented; test commands are documented above. |
 | Cloud deployment and GKE end-to-end analytics | Team-reported successful verification on November 16, 2026, with the measured values above. |
-| Person 2 name and ID in `task_divison.txt` | Missing (`TODO`); must be supplied by Person 2. |
+| Person 2 name and ID in `task_divison.txt` | Pranav Harresh Vishwanathan (`H20260074P`). |
 | Live Alert Service / Pub/Sub / Firestore / GCS verification | Not established by the available verification notes. |
 | Flink job's own Cloud Logging output | Not established by the available verification notes. |

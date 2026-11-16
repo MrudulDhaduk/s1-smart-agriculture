@@ -1,15 +1,15 @@
 CS/SS G527 Cloud Computing - Group Assignment
 Scenario: S1 Smart Agriculture (Data partitioning using consistent hashing)
 
-ID No.          Name            Tasks                                              Services
--------------   -------------   ------------------------------------------------   ------------------------------------------------------------
-TODO            TODO            (a) IaC with Terraform                             Farm Registry, Sensor Registry, Irrigation Controller
-                                (d) GitOps with ArgoCD
-                                (g) Three cloud storage products
+ID No.          Name                            Tasks                                                            Services
+--------------  ------------------------------  ---------------------------------------------------------------  ------------------------------------------------------------
+TODO            TODO                            (a) IaC with Terraform                                           Farm Registry, Sensor Registry, Irrigation Controller
+                                                (d) GitOps with ArgoCD
+                                                (g) Three cloud storage products
 
-2026H1030074P   Pranav Harresh Vishwanathan            (b) Serverless function + REST/gRPC/queues         Telemetry Ingestion, Alert Service (Cloud Function), Farm Analytics
-                                (e) Kafka + Flink stream processing
+H20260074P      Pranav Harresh Vishwanathan     (b) Serverless function + REST/gRPC/queues                       Telemetry Ingestion, Alert Service (Cloud Function), Farm Analytics
+                                                (e) Kafka + Flink stream processing
 
-2026H1030069P   Mrudul          (f) Data partitioning using consistent hashing     Partition Manager, Sensor Store
-                                (c) GKE + Horizontal Pod Autoscalers + k6 load test
-                                (h) Prometheus + Grafana + centralised logging
+2026H1030069P   Mrudul                          (f) Data partitioning using consistent hashing                   Partition Manager, Sensor Store
+                                                (c) GKE + Horizontal Pod Autoscalers + k6 load test
+                                                (h) Prometheus + Grafana + centralised logging
