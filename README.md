@@ -8,7 +8,7 @@ CS/SS G527 Cloud Computing group assignment (BITS Pilani, I Sem 2025-26).
 
 | | Person 1: Infrastructure & Storage | Person 2: Events & Streaming | Person 3: Concept, Scaling & Monitoring |
 |---|---|---|---|
-| **Name** | _TODO_ | _TODO_ | Mrudul |
+| **Name** | _TODO_ | _TODO_ | Dhaduk Mrudul |
 | **Tasks** | (a) Terraform · (d) ArgoCD GitOps · (g) 3 storage products | (b) Serverless + REST/gRPC/queues · (e) Kafka + Flink | (f) Consistent hashing · (c) GKE + HPA + k6 · (h) Prometheus, Grafana, logging |
 | **Services** | Farm Registry · Sensor Registry · Irrigation Controller | Telemetry Ingestion · Alert Service · Farm Analytics | Partition Manager · Sensor Store |
 | **Folders** | `infra/` · `services/farm-registry/` · `services/sensor-registry/` · `services/irrigation-controller/` | `services/telemetry-ingestion/` · `services/alert-function/` · `services/farm-analytics/` · `services/flink-job/` | `services/partition-manager/` · `services/sensor-store/` · `observability/` · `loadtest/` |
