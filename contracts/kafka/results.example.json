@@ -1,0 +1,12 @@
+{
+  "farm_id": "farm7",
+  "window_start_ms": 1762480000000,
+  "window_end_ms": 1762480060000,
+  "readings": 0,
+  "sensors": 0,
+  "avg_moisture_pct": null,
+  "min_moisture_pct": null,
+  "max_moisture_pct": null,
+  "watering_events": 1,
+  "water_litres": 12.5
+}
