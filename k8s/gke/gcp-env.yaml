@@ -55,6 +55,19 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: telemetry-ingestion
+  namespace: s1
+spec:
+  template:
+    spec:
+      containers:
+        - name: telemetry-ingestion
+          envFrom:
+            - secretRef: { name: kafka-client }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
   name: farm-analytics
   namespace: s1
 spec:
