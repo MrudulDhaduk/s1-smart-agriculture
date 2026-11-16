@@ -10,6 +10,6 @@ ID No.         Name                         Tasks                               
 2026H1030074P  Pranav Harresh Vishwanathan  (b) Serverless function + REST/gRPC/queues        Telemetry Ingestion, Alert Service (Cloud Function), Farm Analytics
                                             (e) Kafka + Flink stream processing
 
-2026H1030069P  Mrudul                       (f) Data partitioning using consistent hashing    Partition Manager, Sensor Store
+2026H1030069P  Dhaduk Mrudul                (f) Data partitioning using consistent hashing    Partition Manager, Sensor Store
                                             (c) GKE + Horizontal Pod Autoscalers + k6 load test
                                             (h) Prometheus + Grafana + centralised logging

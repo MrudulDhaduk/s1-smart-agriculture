@@ -8,7 +8,7 @@
 |---|---|---|---|---|
 | 1 | 2026H1030068P | Saravanasudharsan S | (a) Terraform · (d) ArgoCD GitOps · (g) three storage products | Farm Registry · Sensor Registry · Irrigation Controller |
 | 2 | 2026H1030074P | Pranav Harresh Vishwanathan | (b) serverless + REST/gRPC/queues · (e) Kafka + Flink | Telemetry Ingestion · Alert Service · Farm Analytics (+ Flink job) |
-| 3 | 2026H1030069P | Mrudul | (f) consistent hashing · (c) GKE + HPA + k6 · (h) observability | Partition Manager · Sensor Store |
+| 3 | 2026H1030069P | Dhaduk Mrudul | (f) consistent hashing · (c) GKE + HPA + k6 · (h) observability | Partition Manager · Sensor Store |
 
 This document has a shared part (sections 1 to 7: system overview, architecture, responsibilities, interconnection, rationale, requirements) followed by one part per person with the details and evidence of their tasks:
 **Part A** Infrastructure, GitOps and Storage (Person 1) · **Part B** Events and Streaming (Person 2) · **Part C** Concept, Scaling and Monitoring (Person 3).
