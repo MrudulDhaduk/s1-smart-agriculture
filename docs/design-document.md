@@ -27,7 +27,7 @@ Each farm is divided into **plots**, each growing one crop, and each plot has se
 
 It is 9 deployable components (8 microservices plus the Flink job) on Google Cloud, with Kafka on Aiven. Everything in the cloud is created by Terraform; everything in Kubernetes is deployed by ArgoCD from this repository. One public URL (a GKE Ingress) exposes all REST APIs.
 
-**Verified on GKE** (13 and 16 Nov 2026): all ArgoCD Applications Synced/Healthy, 14 pods with 0 restarts; registries seeded through the public URL (5 farms, 20 plots, 200 sensors) and served from Cloud SQL; dry plots watered with events on Kafka and `DRY_SOIL` alerts on Pub/Sub; k6 load test 42,401 writes with 0 failures and both HPAs scaling (2 → 6 → 2 and 2 → 4 → 2); Flink on Dataproc producing per-farm windows that Farm Analytics serves (19 windows, 2,557 readings for `farm1`); Cloud Logging holding the logs of the pods and of the Flink job itself.
+**Verified on GKE** (13 and 16 Nov 2026): all ArgoCD Applications Synced/Healthy, 14 pods with 0 restarts; registries seeded through the public URL (5 farms, 20 plots, 200 sensors) and served from Cloud SQL; dry plots watered with events on Kafka and `DRY_SOIL` alerts on Pub/Sub; k6 load test 42,401 writes with 0 failures and both HPAs scaling (2 → 6 → 2 and 2 → 4 → 2); Flink on Dataproc producing per-farm windows that Farm Analytics serves (19 windows, 2,557 readings for `farm1`); Cloud Logging holding the logs of the pods and of the Flink job itself; the Alert Service turning a Pub/Sub alert into a Firestore document and a Cloud Storage archive object.
 
 <div class="pagebreak"></div>
 
@@ -134,7 +134,7 @@ One GCP project in `us-central1` (zone `us-central1-a`) plus a free Aiven Kafka 
 | Req. | Requirement | Where | Evidence |
 |---|---|---|---|
 | (a) | All infrastructure as code | `infra/` (6 Terraform stacks) | Every resource in Terraform state; drift check clean; cluster rebuilt from code for every session (Part A §2) |
-| (b) | Serverless async function; REST, gRPC and queues | `services/alert-function`, `infra/serverless`, `contracts/` | §4 above; Part B §2.3 |
+| (b) | Serverless async function; REST, gRPC and queues | `services/alert-function`, `infra/serverless`, `contracts/` | Alert Service deployed by Terraform; a `DRY_SOIL` alert published to Pub/Sub was stored in Firestore `alerts` and archived in Cloud Storage; the first deliveries were refused while IAM propagated and Pub/Sub's retries then succeeded. REST, gRPC, Kafka and Pub/Sub all carry live traffic (§4, Part B §2.3) |
 | (c) | GKE, HPAs on two services, k6 load test | `k8s/`, `loadtest/` | 42,401 writes, 0 failed; Partition Manager 2 → 6 → 2, Telemetry Ingestion 2 → 4 → 2 (Part C §4.4) |
 | (d) | GitOps, no `kubectl apply` | `infra/platform`, `k8s/gke` | 4 ArgoCD Applications tracking `main`, auto-sync with prune and self-heal (Part A §3) |
 | (e) | Flink on a managed cluster, stateful windows, `results` topic | `services/flink-job` | Job on Dataproc; per-farm 1-min windows served by Farm Analytics (Part B §5) |
