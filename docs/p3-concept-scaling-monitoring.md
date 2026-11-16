@@ -322,6 +322,8 @@ Every service writes **one JSON object per line** to stdout, with fields such as
 
 **Seen on GKE:** the query `resource.type="k8s_container" resource.labels.namespace_name="s1" jsonPayload.service:*` returned **1,541 entries in 3 hours** from the services in the `s1` namespace (the JSON fields `level`, `message` and `service` are indexed automatically). `sensor_id` is only written when something goes wrong (a failed replica write, or a sensor that could not be copied during a rebalance), not on every successful write, so a search for one sensor finds failures, not normal traffic. The query `jsonPayload.message="replica write failed"` returned the **213** warnings from the node-failure test, each with the `node` and `sensor_id`. Following a sensor through the normal write path would need an INFO line per write, which was left out to keep log volume low.
 
+**Dataproc logs** also reach Cloud Logging: `resource.type="cloud_dataproc_cluster"` returned 5,157 entries in one hour while Person 2's Flink job was running. Those were the cluster's own services (YARN, Hive, HDFS); log lines from the Flink job itself were not found in that hour, so they are not claimed here.
+
 Loki was the alternative. It was rejected because it would need extra log shipping from Dataproc and Cloud Functions. Dataproc only sends Flink's logs to Cloud Logging when two cluster properties are set at creation (`dataproc:dataproc.logging.stackdriver.job.driver.enable` and `…job.yarn.container.enable`); Person 1 sets them in Terraform.
 
 ---
@@ -370,5 +372,7 @@ Loki was the alternative. It was rejected because it would need extra log shippi
 | Prometheus and Grafana on GKE | ✅ dashboard populated on GKE (reached through Cloud Shell Web Preview, which needed `GF_SECURITY_CSRF_TRUSTED_ORIGINS` on the Grafana pod) |
 | Node failure on GKE | ✅ primary deleted, read still served, pod back in about 69 s |
 | Cloud Logging for the GKE pods | ✅ 1,541 JSON entries; 213 replica-failure warnings found by one query (section 5.3) |
-| Cloud Logging including the Flink job and the Alert function | ⏳ not checked in this session (needs Person 2's Flink job to have run on Dataproc) |
+| Dataproc logs in Cloud Logging | ✅ 5,157 cluster log entries in one hour (YARN, Hive, HDFS) |
+| End-to-end: Telemetry Ingestion → Kafka → Flink → Farm Analytics | ✅ 16 Nov 2026: readings sent with `tools/simulate_sensors.py`; `GET /analytics/farms/farm1` returned a 1-minute window of 192 readings from 40 sensors (avg moisture 33.3%), updated about 12 s after the window closed |
+| Flink job's own logs and the Alert function in Cloud Logging | ⏳ not found / not checked |
 | Node join (rebalance) on GKE | ⏳ not run on GKE; measured on the laptop cluster (section 3.4) |
