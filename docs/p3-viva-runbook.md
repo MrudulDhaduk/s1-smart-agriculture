@@ -100,7 +100,7 @@ If `helm install` says the release already exists, it is installed from an earli
 pip install -r services/partition-manager/requirements.txt
 ```
 
-**8. Put the GKE screenshots in one folder** you can open quickly, in order: `01` to `13`.
+**8. Put the GKE screenshots in one folder** you can open quickly, in order: `01` to `15`.
 
 You can leave the cluster running overnight. If you restart the laptop, start Docker Desktop and wait for the pods to return to `Running`.
 
@@ -330,12 +330,14 @@ Show the screenshots in this order. The screenshots are kept outside the repo. T
 | `10`, `11`, `12` | `sensor-store-1` was primary; deleted; read still returned moisture 38.6%; pod back in 69 s | "The node failure test on GKE: I deleted the primary, the read still worked from a replica, and Kubernetes brought the pod back in about 69 seconds." |
 | `09-cloud-logging-all-services.png` | 1,541 JSON log entries from the `s1` namespace | "Centralised logging: every service writes one JSON object per line and Cloud Logging collects them. One query searches all services." |
 | `13-cloud-logging-replica-failure.png` | 213 `replica write failed` warnings | "These are the 213 warnings Partition Manager logged while that node was down, each with the node and the sensor ID." |
+| `14-cloud-logging-dataproc.png` | 5,157 Dataproc cluster log entries in one hour | "Logs from the Dataproc cluster that runs Flink arrive in the same place, outside GKE." |
+| `15-farm-analytics-flink-result.png` | `farm1`: 192 readings from 40 sensors in one 1-minute window, avg moisture 33.3% | "End to end: readings sent through Telemetry Ingestion went through Kafka and Flink and appear in Farm Analytics about 12 seconds after the window closed." |
 
 **Be honest about three things if asked:**
 
 - Telemetry Ingestion needed 7 simulator processes to pass 50% CPU. One Python process could not load it enough.
 - The node-join demo was not run on GKE. It was measured on the laptop cluster (Part 5 and section 3.4 of the design doc).
-- Sensor IDs are logged only on warnings, not on every successful write. Flink and Alert-function logs were not checked in that session.
+- Sensor IDs are logged only on warnings, not on every successful write. Dataproc cluster logs reach Cloud Logging, but log lines from the Flink job itself were not found, and Alert-function logs were not checked.
 
 The file `08-telemetry-hpa-after.png` shows lines from before the peak, not after it. Leave it out, and use `08-hpa-final.png` for the end state.
 
