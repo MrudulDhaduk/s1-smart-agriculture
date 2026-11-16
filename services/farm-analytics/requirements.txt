@@ -1,0 +1,6 @@
+fastapi==0.162.5
+uvicorn==0.54.0
+prometheus-client==0.26.0
+pydantic==2.12.5
+google-cloud-firestore==2.34.1
+confluent-kafka==2.16.1
