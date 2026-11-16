@@ -1,6 +1,6 @@
 # S1 Smart Agriculture: Design Document
 
-**CS/SS G527 Cloud Computing, group assignment, I Semester 2025-26** · Scenario S1: sensor-based irrigation across multiple farms · Required concept: **data partitioning using consistent hashing**
+**CS/SS G527 Cloud Computing, group assignment, First Semester 2026–27** · Scenario S1: sensor-based irrigation across multiple farms · Required concept: **data partitioning using consistent hashing**
 
 **Repository:** https://github.com/MrudulDhaduk/s1-smart-agriculture
 
@@ -12,6 +12,10 @@
 
 This document has a shared part (sections 1 to 7: system overview, architecture, responsibilities, interconnection, rationale, requirements) followed by one part per person with the details and evidence of their tasks:
 **Part A** Infrastructure, GitOps and Storage (Person 1) · **Part B** Events and Streaming (Person 2) · **Part C** Concept, Scaling and Monitoring (Person 3).
+
+## Abstract
+
+S1 Smart Agriculture is a cloud application for sensor-based irrigation across multiple farms, built from eight microservices and a Flink stream-processing job on Google Cloud, with Kafka on Aiven. Soil-moisture readings enter through a public REST API and are stored on three of four storage nodes chosen by a consistent-hashing ring, so that a node can fail or join without data loss and with only about a fifth of the data moving. An irrigation controller decides every 30 seconds which plots to water and how much, publishes its decisions to Kafka and raises alerts on Pub/Sub; a serverless function stores and archives those alerts; a Flink job on Dataproc aggregates readings and watering per farm in one-minute event-time windows, and an analytics service serves the results. The services communicate through REST, gRPC, Kafka and Pub/Sub, and keep their data in Cloud SQL, Firestore and Cloud Storage. Every cloud resource is created by Terraform and every Kubernetes object by ArgoCD from Git. Horizontal Pod Autoscalers scale the two stateless services on the hot path, verified with a k6 load test (42,401 writes, no failures), and Prometheus, Grafana and Cloud Logging cover all components, including the Flink job. The GKE cluster, Dataproc and ArgoCD were recreated from code for every working session and destroyed after it, so the whole project runs within a $50 cloud credit.
 
 ---
 
@@ -29,7 +33,7 @@ It is 9 deployable components (8 microservices plus the Flink job) on Google Clo
 
 **Verified on GKE** (13 and 16 Nov 2026): all ArgoCD Applications Synced/Healthy, 14 pods with 0 restarts; registries seeded through the public URL (5 farms, 20 plots, 200 sensors) and served from Cloud SQL; dry plots watered with events on Kafka and `DRY_SOIL` alerts on Pub/Sub; k6 load test 42,401 writes with 0 failures and both HPAs scaling (2 → 6 → 2 and 2 → 4 → 2); Flink on Dataproc producing per-farm windows that Farm Analytics serves (19 windows, 2,557 readings for `farm1`); Cloud Logging holding the logs of the pods and of the Flink job itself; the Alert Service turning a Pub/Sub alert into a Firestore document and a Cloud Storage archive object.
 
-<div class="pagebreak"></div>
+---
 
 ## 2. Microservice architecture
 
