@@ -27,3 +27,6 @@ resources:
   - telemetry-ingestion/service.yaml
   - telemetry-ingestion/deployment.yaml
   - telemetry-ingestion/hpa.yaml
+  - farm-analytics/serviceaccount.yaml
+  - farm-analytics/service.yaml
+  - farm-analytics/deployment.yaml

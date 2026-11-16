@@ -85,6 +85,20 @@ services:
     ports:
       - "29092:29092"
 
+  farm-analytics:
+    build: { context: ., dockerfile: services/farm-analytics/Dockerfile }
+    image: s1/farm-analytics
+    restart: unless-stopped
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_SECURITY_PROTOCOL: PLAINTEXT
+      KAFKA_RESULTS_TOPIC: results
+      ANALYTICS_STORE: memory
+    ports:
+      - "8085:8080"
+      - "8005:8000"
+    depends_on: [ kafka ]
+
   farm-registry:
     build: { context: ., dockerfile: services/farm-registry/Dockerfile }
     image: s1/farm-registry

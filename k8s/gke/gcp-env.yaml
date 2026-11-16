@@ -64,3 +64,19 @@ spec:
         - name: telemetry-ingestion
           envFrom:
             - secretRef: { name: kafka-client }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: farm-analytics
+  namespace: s1
+spec:
+  template:
+    spec:
+      containers:
+        - name: farm-analytics
+          envFrom:
+            - secretRef: { name: gcp-config }
+            - secretRef: { name: kafka-client }
+          env:
+            - { name: ANALYTICS_STORE, value: firestore }
