@@ -1,6 +1,6 @@
 # S1 · Smart Agriculture: sensor-based irrigation across multiple farms
 
-CS/SS G527 Cloud Computing group assignment (BITS Pilani, I Sem 2025-26).
+CS/SS G527 Cloud Computing group assignment (BITS Pilani, I Sem 2026-27).
 **Required concept:** data partitioning using consistent hashing.
 **Cloud:** Google Cloud Platform (GKE, Dataproc, Cloud SQL, Firestore, Cloud Storage, Cloud Functions, Pub/Sub).
 
