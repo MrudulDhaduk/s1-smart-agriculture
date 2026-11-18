@@ -1,6 +1,6 @@
 # S1 Smart Agriculture: Design Document
 
-**CS/SS G527 Cloud Computing, group assignment, First Semester 2025–26** · Scenario S1: sensor-based irrigation across multiple farms · Required concept: **data partitioning using consistent hashing**
+**CS/SS G527 Cloud Computing, group assignment, First Semester 2026–27** · Scenario S1: sensor-based irrigation across multiple farms · Required concept: **data partitioning using consistent hashing**
 
 **Repository:** https://github.com/MrudulDhaduk/s1-smart-agriculture
 

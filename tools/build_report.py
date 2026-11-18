@@ -175,7 +175,7 @@ def build_html():
 <p class="subtitle">Sensor-Based Irrigation Across Multiple Farms</p>
 <p class="kind">Design Document — Cloud Computing Group Assignment</p>
 <table>{team}</table>
-<p class="meta">Cloud Computing (CS/SS G527)<br>First Semester 2025–26<br>
+<p class="meta">Cloud Computing (CS/SS G527)<br>First Semester 2026–27<br>
 Scenario S1 — Data partitioning using consistent hashing<br>November 2026<br>
 github.com/MrudulDhaduk/s1-smart-agriculture</p>
 </div>"""
