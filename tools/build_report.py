@@ -26,8 +26,15 @@ CREST = DOCS / "images" / "bits_crest.png"
 MERMAID = "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"
 TITLE = "S1 Smart Agriculture — Design Document"
 FOOTER_LEFT = "S1 Smart Agriculture  ·  Cloud Computing (CS/SS G527)"
-FONT_REG = "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"
-FONT_BOLD = "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"
+def _font(*candidates):
+    """First font file that exists: Times New Roman, else its metric-compatible Liberation Serif."""
+    return next((f for f in candidates if pathlib.Path(f).exists()), candidates[-1])
+
+
+FONT_REG = _font("/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman.ttf",
+                 "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf")
+FONT_BOLD = _font("/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman_Bold.ttf",
+                  "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf")
 NAVY = (0x10 / 255, 0x11 / 255, 0x41 / 255)
 MUTED = (0x59 / 255, 0x59 / 255, 0x59 / 255)
 STRIPE = [(0xFC / 255, 0xB0 / 255, 0x17 / 255), (0x76 / 255, 0xC2 / 255, 0xE5 / 255), (1, 0, 0)]
@@ -46,7 +53,7 @@ TEAM = [
 CSS = """
 @page { size: Letter; margin: 0.98in 0.8in 0.9in 0.8in; }
 html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-body { font-family: Calibri, Carlito, "Noto Sans", Arial, sans-serif; font-size: 10.3pt; line-height: 1.45;
+body { font-family: "Times New Roman", "Liberation Serif", Times, serif; font-size: 11pt; line-height: 1.4;
        color: #1f1f1f; margin: 0; }
 h1 { font-size: 19pt; color: #101141; margin: 0 0 4pt; line-height: 1.2; break-before: page; }
 h1 + p { color: #595959; font-size: 9.6pt; }
@@ -168,7 +175,7 @@ def build_html():
 <p class="subtitle">Sensor-Based Irrigation Across Multiple Farms</p>
 <p class="kind">Design Document — Cloud Computing Group Assignment</p>
 <table>{team}</table>
-<p class="meta">Cloud Computing (CS/SS G527)<br>First Semester 2026–27<br>
+<p class="meta">Cloud Computing (CS/SS G527)<br>First Semester 2025–26<br>
 Scenario S1 — Data partitioning using consistent hashing<br>November 2026<br>
 github.com/MrudulDhaduk/s1-smart-agriculture</p>
 </div>"""
@@ -180,7 +187,7 @@ github.com/MrudulDhaduk/s1-smart-agriculture</p>
 <base href="{DOCS.as_uri()}/"><style>{CSS}</style>
 <script src="{MERMAID}"></script>
 <script>mermaid.initialize({{startOnLoad: true, theme: "neutral",
-  themeVariables: {{fontFamily: "Noto Sans, Arial, sans-serif", fontSize: "15px"}},
+  themeVariables: {{fontFamily: "Times New Roman, Liberation Serif, serif", fontSize: "16px"}},
   flowchart: {{useMaxWidth: true, htmlLabels: true, nodeSpacing: 18, rankSpacing: 32, padding: 6}}}});</script>
 </head><body>{body}</body></html>"""
 
