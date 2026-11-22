@@ -14,8 +14,8 @@
 | `pmctl.py` | Command-line remote control for demos |
 | `demo.py` | Offline demo: 80% vs 18% moved, balance, crash survival |
 | `transfer.py` | Copies one sensor's readings between nodes in batches (used by rebalancing and repair) |
-| `test_ring.py` | 9 unit tests for the ring |
-| `test_integration.py` | 13 end-to-end tests: real gRPC, 5 stores, crashes, slow replicas, add/remove node, repair, long histories, restarts, bad input |
+| `test_ring.py` | Unit tests for the ring |
+| `test_integration.py` | End-to-end tests: real gRPC, 5 stores, crashes, slow replicas, add/remove node, repair, long histories, restarts, bad input |
 
 ## Run everything with Docker (from the repo root)
 
