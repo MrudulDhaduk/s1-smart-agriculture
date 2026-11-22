@@ -161,6 +161,17 @@ kubectl apply -f loadtest/k6-gke.yaml
 
 🗣 *"k6 runs as a Job inside the cluster and sends about 150 writes per second. CPU goes past the 50% target, so the HPA adds pods, up to our maximum of 6. When the load stops it waits, so it doesn't flap, then scales back to 2."*
 
+**k6 result (22 Nov, with `sensor-store-1` deleted in the middle) ✅** (Cloud Shell: `kubectl logs -n s1 job/k6-pm-write --tail=40`):
+| | |
+|---|---|
+| Writes | **45,333** in 5 min = **151 per second** |
+| Checks | **100%** (90,666 of 90,666): "status is OK" + "stored on a majority of replicas" |
+| Latency | avg 187 ms, **p95 578 ms**, max 1.23 s |
+| Virtual users | up to 40 |
+
+🗣 *"45,000 writes in 5 minutes, about 150 per second, and 100% of checks passed, even though I killed a storage node in the middle. p95 latency was 578 milliseconds."*
+**p95** = 95% of requests were faster than this.
+
 Why k6 runs inside the cluster: from outside, a port-forward would send all traffic to one pod, so the new pods would get none.
 
 ---
@@ -175,6 +186,15 @@ Go back to **sensor-store** → click **Refresh**. Within about a minute **`sens
 - `sensor-store-1`: Created on **7:06 PM** ← brand new pod, **same name**
 
 **"Why is Restarts 0?"** Restarts counts a *container* restarting inside the same pod. I deleted the whole pod, so the StatefulSet created a **new pod** with the same name and re-attached disk `data-sensor-store-1`. The **Created on** time is the proof.
+
+**What makes Restarts go up?** Only the **container crashing inside the same pod** (app crash, out of memory, failed health check). Kubernetes restarts it in place, same pod, Restarts +1.
+| You delete... | What happens | Restarts |
+|---|---|---|
+| the **pod** | new pod, same name, same disk | stays **0** (new pod) |
+| the **disk** (PVC, in GKE **Storage**) | blocked while a pod uses it (stays "Terminating") | no change |
+| a node from **Firestore** `ring/membership` | the **ring** changes, routers stop sending data to it. Pods untouched | no change. **Don't do this in the demo** |
+
+Firestore holds **no disks**. It only holds the ring membership list. The disks are in **Kubernetes Engine → Storage**.
 
 **Tip:** do this while k6 is running. Writes keep succeeding (2 of 3 copies is enough), and it creates the warnings shown in Step 7.
 
