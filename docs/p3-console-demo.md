@@ -99,9 +99,18 @@ That's because it is a **headless Service** (`clusterIP: None`). It doesn't load
 
 ---
 
-## Step 3. Each storage node has its own disk ⏳
+## Step 3. Each storage node has its own disk ✅
 
-**Clicks:** left menu **Storage** (namespace `s1`) → **Persistent Volume Claims**: `data-sensor-store-0` to `data-sensor-store-3`, 1 GB each.
+**Clicks:** left menu → scroll to **Kubernetes Resources** → **Storage** → Namespace **`s1`** → tab **Persistent volume claims**.
+
+| Column | Shows | Meaning |
+|---|---|---|
+| Name | `data-sensor-store-0` … `-3` | one disk claim per ring node (name = `data-` + pod name) |
+| Phase | **Bound** | the claim is attached to a real disk |
+| Volume | `pvc-…` | the actual Google persistent disk |
+| Storage class | `standard-rwo` | GKE's default disk type, ReadWriteOnce = one pod at a time |
+
+⚠️ If you see a **`data-sensor-store-4`** too: it's left over from a node-join test (scaled to 5 pods, then back to 4). Kubernetes **keeps the disk when a StatefulSet scales down**, on purpose, so data isn't lost by accident. If asked, say exactly that.
 
 🗣 *"One disk per ring node. If a pod restarts, it gets the same disk back, so its data is still there."*
 
