@@ -53,10 +53,27 @@ Tabs: *Overview · Details · Observability · **Scaling** · Revision history �
 
 🗣 *"Partition Manager is stateless, so it's a Deployment. Right now there are 2 pods, using almost no CPU. The autoscaler is attached. When load comes, it adds pods."*
 
-### 2b. Scaling tab ⏳
-**Clicks:** **Scaling** tab → should show the HPA: **min 2, max 6, target CPU 50%**.
+### 2b. Scaling tab ✅ (the best page for autoscaling)
+**Clicks:** still on partition-manager → **Scaling** tab.
 
-🗣 *"The autoscaler keeps average CPU at 50% of the request. Minimum 2 pods so one can die without an outage, maximum 6 as our cost ceiling."*
+**Top box, left to right:**
+| Box | Shows | Meaning |
+|---|---|---|
+| Active scaling strategy | ✅ **HPA**, ⛔ VPA | HPA is on. VPA is off. |
+| Cooldown duration | **Scale down window: 60 sec** | waits 60 s before removing pods |
+| Pods | **2 of 2** | current pod count |
+| CPU utilization | ~3% | average CPU, as % of the request |
+| Memory utilization | ~37% | |
+
+**"Horizontal Pod Autoscaler" box:** Name `partition-manager`, **Min replicas 2**, **Max replicas 6**, **CPU utilization: 3% out of 50%** (the bar).
+
+- **HPA** (Horizontal) = changes the **number of pods**. ← we use this
+- **VPA** (Vertical) = changes the **size (CPU/memory) of each pod**. Not used.
+
+🗣 *"This is the autoscaler on Partition Manager. It keeps average CPU at 50% of each pod's request. Right now it's 3% of 50%, so it stays at the minimum of 2 pods. Minimum 2 so one pod can die without an outage, maximum 6 as our cost ceiling. Scale-down waits 60 seconds so it doesn't flap up and down."*
+
+The HPA formula (if asked): `desired pods = ceil(current pods × current CPU ÷ target CPU)`.
+Example: 2 pods at 150% → `ceil(2 × 150 ÷ 50)` = **6**.
 
 ### 2c. Click `sensor-store` ⏳
 **Clicks:** back to **Workloads** → **sensor-store** → **Managed pods**: `sensor-store-0`, `-1`, `-2`, `-3`.
@@ -98,9 +115,10 @@ kubectl apply -f loadtest/k6-gke.yaml
 
 **Then in the console:**
 1. **Workloads**: a new row **`k6-pm-write`** (a Job) appears. That's the load test.
-2. Click **partition-manager** → **Overview**. Refresh every ~30 s:
-   - **Blue CPU line** climbs.
-   - **Replicas** goes **2 → 6**.
+2. Click **partition-manager** → **Scaling** tab. Click **Refresh** (top) every ~30 s:
+   - **CPU utilization** bar goes past **50%** (e.g. "290% out of 50%").
+   - **Pods** goes **2 of 2 → 6 of 6**.
+   - (The **Overview** tab shows the same as graphs: the blue CPU line climbs.)
 3. The test runs ~5 min. A few minutes after it ends, replicas go back to **2**.
 
 🗣 *"k6 runs as a Job inside the cluster and sends about 150 writes per second. CPU goes past the 50% target, so the HPA adds pods, up to our maximum of 6. When the load stops it waits, so it doesn't flap, then scales back to 2."*
