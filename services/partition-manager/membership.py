@@ -7,12 +7,21 @@ The membership is one small record:   {"version": 3, "nodes": ["sensor-store-0",
 Two places it can live (chosen with MEMBERSHIP_BACKEND):
     file       a JSON file on a shared volume   (local docker-compose, tests)
     firestore  one Firestore document           (GKE, the real deployment)
+
+Changes use save_if(expected_version, ...): a compare-and-set. It saves only if the
+stored version is still the one the caller read, so two router pods changing the ring
+at the same moment cannot silently overwrite each other (a "lost update").
 """
 
 import json
 import os
 import threading
 import uuid
+
+try:
+    import fcntl  # Linux/macOS: a lock that also works between processes (pods sharing the file)
+except ImportError:  # Windows: only the in-process lock below
+    fcntl = None
 
 
 class FileMembership:
@@ -36,12 +45,25 @@ class FileMembership:
                 os.fsync(f.fileno())    # really on disk before we swap it in (survives a power cut)
             os.replace(tmp, self.path)  # atomic: readers never see a half-written file
 
+    def save_if(self, expected_version, version, nodes):
+        """Save only if the stored version is still expected_version. Returns True if saved."""
+        with open(f"{self.path}.lock", "a") as lock_file:
+            if fcntl:
+                fcntl.flock(lock_file, fcntl.LOCK_EX)  # held until the file is closed
+            current, _ = self.load()
+            if current != expected_version:
+                return False
+            self.save(version, nodes)
+            return True
+
 
 class FirestoreMembership:
     def __init__(self, initial_nodes, collection="ring", document="membership"):
         from google.cloud import firestore  # imported here so local runs don't need it
 
-        self.doc = firestore.Client().collection(collection).document(document)
+        self.firestore = firestore
+        self.client = firestore.Client()
+        self.doc = self.client.collection(collection).document(document)
         if not self.doc.get().exists:
             self.save(1, initial_nodes)
 
@@ -51,6 +73,20 @@ class FirestoreMembership:
 
     def save(self, version, nodes):
         self.doc.set({"version": version, "nodes": nodes})
+
+    def save_if(self, expected_version, version, nodes):
+        """Save only if the stored version is still expected_version, inside a Firestore
+        transaction (Firestore retries it if the document changes before it commits)."""
+
+        @self.firestore.transactional
+        def run(transaction):
+            data = self.doc.get(transaction=transaction).to_dict()
+            if data["version"] != expected_version:
+                return False
+            transaction.set(self.doc, {"version": version, "nodes": nodes})
+            return True
+
+        return run(self.client.transaction())
 
 
 def from_env():

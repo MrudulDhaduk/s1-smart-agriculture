@@ -448,10 +448,11 @@ Tell Person 1 when you finish, so they can tear the cluster down.
 | Why did it stop at 6 pods? | `maxReplicas: 6` is our cost ceiling. Scale-up is immediate; scale-down waits 60 seconds to avoid flapping. |
 | Why a headless Service for Sensor Store? | The router must reach one specific ring node by name, not a random pod. |
 | Why was GKE latency higher than the laptop? | p95 was 777 ms on GKE against 377 ms on the laptop. My explanation is small nodes, new pods starting, and Sensor Store pods on other machines. I did not measure the cause. |
+| Did you fix any limitation? | Yes. Two router pods changing the ring at the same moment could overwrite each other (a lost update). Now the ring is saved with a compare-and-set: only if the version is still the one the pod read, using a Firestore transaction. The slower change is rejected and can be run again. |
 | Why Cloud Logging and not Loki? | Flink runs on Dataproc and the Alert Service is a Cloud Function, both outside GKE. Cloud Logging collects all three natively. |
 | Prometheus: push or pull? | Pull. It scrapes each pod's `/metrics` endpoint every 15 seconds. ServiceMonitors tell it which services to scrape. |
 | How does it reach GKE? | Terraform creates the cluster and installs ArgoCD. ArgoCD deploys the `k8s/gke` folder from the `main` branch. That is Person 1's part. |
-| What breaks in your design? | Router pods can disagree for up to 5 seconds after a membership change. There is no hinted handoff. Rebalancing is sequential and slow. Two membership changes at the same moment can overwrite each other. Section 7 of the design doc lists them. |
+| What breaks in your design? | Router pods can disagree for up to 5 seconds after a membership change. There is no hinted handoff. Rebalancing is sequential and slow. Section 7 of the design doc lists them. |
 
 ## If something breaks, and how to reset
 

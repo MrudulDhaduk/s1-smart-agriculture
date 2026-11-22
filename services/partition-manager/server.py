@@ -70,6 +70,10 @@ MOVED = Counter("pm_rebalance_sensors_moved_total", "Sensors copied to a new own
 REBALANCE_SECONDS = Gauge("pm_last_rebalance_seconds", "How long the last rebalance took")
 
 
+class MembershipConflict(RuntimeError):
+    """Another router pod changed the ring while this change was running."""
+
+
 class InvalidRequest(ValueError):
     """The caller sent something wrong: answer INVALID_ARGUMENT, not a server error."""
 
@@ -140,6 +144,10 @@ class PartitionManager(pm_grpc.PartitionManagerServicer):
         except InvalidRequest as e:  # the caller's mistake: not counted as a server error
             REQUESTS.labels(method, "invalid").inc()
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
+        except MembershipConflict as e:  # lost a race with another pod: safe to retry
+            REQUESTS.labels(method, "conflict").inc()
+            log("WARNING", "membership change rejected", method=method, error=str(e))
+            context.abort(grpc.StatusCode.ABORTED, str(e))
         except Exception as e:
             REQUESTS.labels(method, "error").inc()
             log("ERROR", "request failed", method=method, error=str(e))
@@ -269,7 +277,10 @@ class PartitionManager(pm_grpc.PartitionManagerServicer):
 
             start = time.time()
             moves = self._copy_moved_sensors(old_ring, new_ring)        # 1. copy data to the new owners
-            self.membership.save(version + 1, new_nodes)                # 2. switch to the new ring...
+            if not self.membership.save_if(version, version + 1, new_nodes):  # 2. switch to the new ring,
+                raise MembershipConflict(                                      #    only if nobody else changed it
+                    f"the ring changed (another pod?) while adding/removing {node}; nothing was switched, "
+                    "run the command again (extra copies made so far are removed by `pmctl repair`)")
             self.refresh()
             time.sleep(self.refresh_seconds + 1)                        #    ...and wait until EVERY router pod has it
             moves.update(self._copy_moved_sensors(old_ring, new_ring))  # 3. catch-up: full re-scan, so readings AND
