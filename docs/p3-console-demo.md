@@ -97,7 +97,7 @@ Tabs: *Overview · Details · Observability · **Scaling** · Revision history �
 The HPA formula (if asked): `desired pods = ceil(current pods × current CPU ÷ target CPU)`.
 Example: 2 pods at 150% → `ceil(2 × 150 ÷ 50)` = **6**.
 
-### 2c. Click `sensor-store` ✅ (top part) / ⏳ (Managed pods)
+### 2c. Click `sensor-store` ✅
 **Clicks:** ← back to **Workloads** → **sensor-store** → opens **Stateful Set details**.
 Tabs: *Details · Scaling · Events · Revision history · Logs · YAML* (no Overview tab here).
 
@@ -155,7 +155,7 @@ Shows:
 
 ---
 
-## Step 5. Autoscaling under load ⭐ ⏳
+## Step 5. Autoscaling under load ⭐ ✅
 
 **Open Cloud Shell** (`>_`, top right) and paste:
 
@@ -198,7 +198,7 @@ Why k6 runs inside the cluster: from outside, a port-forward would send all traf
 
 ---
 
-## Step 6. A storage node fails ⏳
+## Step 6. A storage node fails ✅
 
 **Clicks:** **Workloads** → **sensor-store** → **Managed pods** → click **`sensor-store-1`** → **Delete** (top) → confirm.
 Go back to **sensor-store** → click **Refresh**. Within about a minute **`sensor-store-1` is back**, with the same name.
@@ -224,7 +224,7 @@ Firestore holds **no disks**. It only holds the ring membership list. The disks 
 
 ---
 
-## Step 7. Centralised logging ⏳
+## Step 7. Centralised logging ✅
 
 **Clicks:** search bar → **Logs Explorer** → time **Last 1 hour** → paste the query → **Run query**.
 
