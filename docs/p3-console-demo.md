@@ -87,7 +87,13 @@ Tabs: *Details · Scaling · Events · Revision history · Logs · YAML* (no Ove
 - **Annotations:** `argocd.argoproj.io/tracking-id: s1:apps/StatefulSet:s1/sensor-store`. This proves **ArgoCD deployed it** from Git, not someone typing kubectl.
 - **Label selector:** `app = sensor-store`.
 
-**Scroll down → Managed pods:** `sensor-store-0`, `-1`, `-2`, `-3`.
+**Scroll down → Pod specification:** Restart policy **Always** (Kubernetes restarts a crashed container).
+
+**Scroll down → Managed pods ✅:** `sensor-store-0`, `-1`, `-2`, `-3`, all **Running**, Restarts **0**.
+Point out the names: **fixed numbers 0–3**, not random letters like Deployment pods (`partition-manager-7f9c…`).
+
+**Scroll down → Exposing services ✅:** `sensor-store`, Type **Cluster IP**, **Endpoints empty**.
+That's because it is a **headless Service** (`clusterIP: None`). It doesn't load-balance. Each pod gets its own DNS name, e.g. `sensor-store-2.sensor-store`, so Partition Manager can reach **one specific ring node**.
 
 🗣 *"Sensor Store is stateful, so it's a StatefulSet. Each pod has a fixed name, which is its name on the hash ring, and its own disk. It has no autoscaler. If the HPA added a pod it wouldn't be on the ring, and removing one would lose its share of the data. I add storage nodes on purpose, through the ring."*
 
