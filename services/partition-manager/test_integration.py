@@ -283,3 +283,37 @@ def test_old_copy_is_kept_when_the_copy_to_the_new_node_fails(cluster, monkeypat
 
     client.AddNode(pm.NodeRequest(node="sensor-store-4"))
     assert sensor in manager.stub(lost).ListSensors(ss.ListSensorsRequest()).sensor_ids   # not deleted
+
+
+def test_save_if_refuses_a_stale_version(tmp_path):
+    ring = membership.FileMembership(str(tmp_path / "membership.json"), ["a", "b"])
+    assert ring.save_if(1, 2, ["a", "b", "c"])          # version 1 was current: saved
+    assert not ring.save_if(1, 2, ["a"])                 # still thinks it is 1: refused
+    assert ring.load() == (2, ["a", "b", "c"])           # the first change survives
+
+
+def test_concurrent_ring_change_is_rejected_not_lost(cluster, tmp_path, monkeypatch):
+    """Two router pods change the ring at once: the slower one must fail, not overwrite."""
+    client, manager, _, _ = cluster
+    other_pod = membership.FileMembership(manager.membership.path, [])  # same file, another "pod"
+    real_copy = manager._copy_moved_sensors
+    raced = []
+
+    def copy_while_another_pod_removes_a_node(old_ring, new_ring):
+        if not raced:  # during our step 1, the other pod finishes its own change first
+            raced.append(True)
+            version, nodes = other_pod.load()
+            assert other_pod.save_if(version, version + 1, [n for n in nodes if n != "sensor-store-3"])
+        return real_copy(old_ring, new_ring)
+
+    monkeypatch.setattr(manager, "_copy_moved_sensors", copy_while_another_pod_removes_a_node)
+    with pytest.raises(grpc.RpcError) as error:
+        client.AddNode(pm.NodeRequest(node="sensor-store-4"))
+    assert error.value.code() == grpc.StatusCode.ABORTED
+    version, nodes = manager.membership.load()
+    assert version == 2 and "sensor-store-3" not in nodes and "sensor-store-4" not in nodes  # the other change kept
+
+    monkeypatch.setattr(manager, "_copy_moved_sensors", real_copy)
+    client.AddNode(pm.NodeRequest(node="sensor-store-4"))  # a retry on the new version works
+    version, nodes = manager.membership.load()
+    assert version == 3 and "sensor-store-4" in nodes

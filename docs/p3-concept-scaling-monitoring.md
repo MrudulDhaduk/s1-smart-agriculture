@@ -363,7 +363,7 @@ Loki was the alternative. It was rejected because it would need extra log shippi
 | Each `ListSensors` reply carries every sensor ID a node holds in one message | Fine up to roughly 250,000 sensors per node (gRPC's 4 MB limit); beyond that it needs paging | Paged listing, like the batched history copy |
 | Admin calls (`AddNode`, `RemoveNode`) have no authentication | Any pod that can reach Partition Manager could change the ring | mTLS between services, or a separate admin endpoint |
 | Replica placement does not know which machine a node runs on | Pods are spread over machines, but with more ring nodes than machines two copies of one sensor can still share a machine | Rack- or zone-aware placement (Cassandra's NetworkTopologyStrategy) |
-| Two membership changes started on two different router pods at the same moment | Both read version N and write N + 1, so one change overwrites the other (a *lost update*) | Compare-and-set on the version, e.g. a Firestore transaction |
+| ~~Two membership changes started on two different router pods at the same moment~~ **Fixed** | Before: both read version N and wrote N + 1, so one change overwrote the other (a *lost update*). Now the switch is a compare-and-set: it saves only if the version is still N (a Firestore transaction on GKE, a locked file on the laptop). The slower change is rejected with `ABORTED` and can simply be run again. | Done; tested in `test_concurrent_ring_change_is_rejected_not_lost` |
 | Metric counters live in pod memory | They disappear when the HPA removes that pod; the dashboard shows the highest value in the time range | Push important events to durable storage |
 
 ---
