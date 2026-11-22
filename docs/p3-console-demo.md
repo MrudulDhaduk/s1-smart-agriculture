@@ -4,7 +4,29 @@ Only my part: (f) consistent hashing, (c) GKE + HPA + k6, (h) monitoring and log
 My services: **Partition Manager** and **Sensor Store**.
 Everything is clicked in the console. The only typing is one block in **Cloud Shell** (the `>_` icon at the top right) to start the load test.
 
-Marked ✅ = checked on the live console. Marked ⏳ = not checked yet, so the exact button may look slightly different.
+Marked ✅ = checked on the live console.
+
+All steps below were checked live on 22 Nov 2026.
+
+## The 10-minute run order (practise exactly this)
+
+| # | Min | Console page | Point at | Key line |
+|---|---|---|---|---|
+| 0 | 0:30 | — | — | Opening line (below) |
+| 1 | 1 | Kubernetes Engine → **Clusters** → `s1-gke` → Nodes | zone, node pool 2–4 | "Our GKE cluster, made by Terraform" |
+| 2 | 1 | **Workloads**, namespace `s1` | partition-manager = Deployment 2/2, sensor-store = Stateful Set 4/4 | "Router + 4 ring nodes" |
+| 3 | 1 | partition-manager → **Scaling** tab | HPA ✅, min 2, max 6, "3% out of 50%", 60 s cooldown | "Keeps CPU at 50%" |
+| 4 | 1 | sensor-store → scroll to **Managed pods** + **Exposing services** | fixed names 0–3, headless service | "Name = place on the ring" |
+| 5 | 0:30 | Kubernetes Resources → **Storage** | `data-sensor-store-0..3` Bound | "One disk per node" |
+| 6 | 1 | **Firestore** → ring → membership | 4 nodes + version | "Routers re-read it every 5 s" |
+| 7 | 0:30 | **Cloud Shell**: paste the Step 5 block | — | "k6 runs inside the cluster" |
+| 8 | 2 | partition-manager → **Scaling**, Refresh | Pods 2 → 6, "218% out of 50%" | "HPA scaled to the max of 6" |
+| 9 | 1 | *while k6 runs:* sensor-store → `sensor-store-1` → **Delete** → Refresh | new Created time, same name | "Same name, same disk" |
+| 10 | 0:30 | Cloud Shell: `kubectl logs -n s1 job/k6-pm-write --tail=40` | checks 100%, ~150/s, p95 | "No write failed, even with a node down" |
+| 11 | 1 | **Logs Explorer**, Warning query | "read failed, trying next replica" at the kill time | "Replica fallback, in the logs" |
+| 12 | — | partition-manager → **Scaling** (a few min later) | back to 2 of 2 | "Scales back in" |
+
+**After the demo:** in Cloud Shell `kubectl delete job k6-pm-write -n s1`, then tell Person 1 to run `infra/scripts/down.sh`.
 
 ---
 
@@ -153,7 +175,7 @@ kubectl apply -f loadtest/k6-gke.yaml
    - **CPU utilization** bar goes past **50%** (e.g. "290% out of 50%").
    - **Pods** goes **2 of 2 → 6 of 6**.
    - (The **Overview** tab shows the same as graphs: the blue CPU line climbs.)
-3. The test runs ~5 min. A few minutes after it ends, replicas go back to **2**.
+3. The test runs ~5 min. A few minutes after it ends, replicas go back to **2**. ✅ Seen 22 Nov: back to **2 of 2**.
 
 **Seen live on 22 Nov ✅:** Pods **6 of 6**, CPU utilization **256%** (top box) and **"218% out of 50%"** (HPA box), bar orange.
 - The two CPU numbers differ a little because they're sampled at slightly different times. Both are far above 50%.
@@ -222,7 +244,16 @@ severity>=WARNING
 - On other runs you may also see `replica write failed` (with `node` and `sensor_id`). Same idea, for writes.
 
 Where do reads come from during the test? k6 only writes. The reads come from **Irrigation Controller**, which keeps asking Partition Manager for the latest reading of each sensor.
-To show every service, remove the last two lines and add `jsonPayload.service:*`.
+**All services in one query ✅:**
+```
+resource.type="k8s_container"
+resource.labels.namespace_name="s1"
+jsonPayload.service:*
+```
+Seen on 22 Nov: **272 results** in 1 hour. Left **Fields** panel → **Container name**: `irrigation-controller` 254, `partition-manager` 16, `sensor-store` 2. Only services that logged in that hour show up.
+Severity icons: blue **i** = Info (e.g. "control cycle"), yellow **!** = Warning (e.g. "alert published").
+
+🗣 *"One query searches every service. On the left, Cloud Logging lets me break the results down by container name."*
 
 🗣 *"Every service logs one JSON object per line, and Cloud Logging collects them. Here Partition Manager logged 'read failed, trying next replica' exactly while sensor-store-1 was down. That's the replica fallback working: the read didn't fail, it went to the next copy. We picked Cloud Logging because Flink on Dataproc and the Cloud Function are outside GKE, and it collects all of them in one place."*
 
