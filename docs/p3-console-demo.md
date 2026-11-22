@@ -116,12 +116,20 @@ That's because it is a **headless Service** (`clusterIP: None`). It doesn't load
 
 ---
 
-## Step 4. The ring membership in Firestore ⏳
+## Step 4. The ring membership in Firestore ✅
 
-**Clicks:** top search bar → **Firestore** → database **`(default)`** → collection **`ring`** → document **`membership`**.
-Shows `version: 1` and `nodes:` the 4 sensor-store names.
+**Clicks:** top search bar → type **Firestore** → open it → left menu **Firestore Studio** → **Panel view** → column 1 `(default)` → click collection **`ring`** → column 2 click document **`membership`**.
+Breadcrumb at the top reads: **Root › ring › membership**.
 
-🗣 *"This is the ring membership: which nodes are on the ring, plus a version number. Every Partition Manager pod re-reads it every 5 seconds, so all routers agree. It can't live in pod memory because the autoscaler adds and removes pods."*
+Shows:
+- `nodes:` 0 `sensor-store-0`, 1 `sensor-store-1`, 2 `sensor-store-2`, 3 `sensor-store-3`
+- `version:` a number (5 on 22 Nov)
+
+**Why the version is not 1:** it goes up by 1 every time a node joins or leaves the ring. Firestore is **not deleted** with the cluster (it's in the long-lived Terraform stack), so the number keeps counting across sessions. Version 5 = started at 1, then 4 changes (my node-join tests: add `sensor-store-4`, remove it, ...).
+
+**The other collections** (`alerts`, `farm_summaries`, `irrigation_state`) belong to Person 1 and 2. Only `ring` is mine.
+
+🗣 *"This is the ring membership: which storage nodes are on the ring, plus a version number. Every Partition Manager pod re-reads it every 5 seconds, so all router pods agree on the same ring. It can't live in pod memory because the autoscaler adds and removes those pods. The version is 5 because I've tested adding and removing a fifth node. Each change bumps it by one, and Firestore keeps it between sessions."*
 
 ---
 
