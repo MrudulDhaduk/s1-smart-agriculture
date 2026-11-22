@@ -168,7 +168,15 @@ Why k6 runs inside the cluster: from outside, a port-forward would send all traf
 ## Step 6. A storage node fails ⏳
 
 **Clicks:** **Workloads** → **sensor-store** → **Managed pods** → click **`sensor-store-1`** → **Delete** (top) → confirm.
-Go back to **sensor-store**. Within about a minute **`sensor-store-1` is back**, with the same name and a young age.
+Go back to **sensor-store** → click **Refresh**. Within about a minute **`sensor-store-1` is back**, with the same name.
+
+**Seen live on 22 Nov ✅** (done **during** the k6 load test, which is better):
+- `sensor-store-0`, `-2`, `-3`: Created on **2:01 PM** (old)
+- `sensor-store-1`: Created on **7:06 PM** ← brand new pod, **same name**
+
+**"Why is Restarts 0?"** Restarts counts a *container* restarting inside the same pod. I deleted the whole pod, so the StatefulSet created a **new pod** with the same name and re-attached disk `data-sensor-store-1`. The **Created on** time is the proof.
+
+**Tip:** do this while k6 is running. Writes keep succeeding (2 of 3 copies is enough), and it creates the warnings shown in Step 7.
 
 🗣 *"I killed a storage node. Kubernetes recreated it with the same name and the same disk. No data was lost meanwhile: each reading has 3 copies, writes only need 2 of the 3 to confirm, and reads fall back to the next replica."*
 
