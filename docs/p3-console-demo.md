@@ -213,10 +213,18 @@ resource.labels.container_name="partition-manager"
 severity>=WARNING
 ```
 
-Shows **`replica write failed`** warnings from when `sensor-store-1` was down.
+**Exact clicks ✅:** top search bar → type **logs explorer** → open **Logs Explorer** (under Observability → Logging) → top right time button → **Last 1 hour** → make sure **Show query** toggle is on → paste the query in the black box → **Run query** (blue, top right).
+
+**Seen live on 22 Nov ✅:** 4 results, severity **Warning** (yellow !), all from `partition-manager`:
+`read failed, trying next replica` at 19:02–19:06, exactly while `sensor-store-1` was down.
+- **Timeline** (the orange bars) = when the warnings happened.
+- Click the **▸** on a row to open it. You'll see the JSON log with `node: sensor-store-1` and the error.
+- On other runs you may also see `replica write failed` (with `node` and `sensor_id`). Same idea, for writes.
+
+Where do reads come from during the test? k6 only writes. The reads come from **Irrigation Controller**, which keeps asking Partition Manager for the latest reading of each sensor.
 To show every service, remove the last two lines and add `jsonPayload.service:*`.
 
-🗣 *"Every service logs one JSON object per line, and Cloud Logging collects them. Here Partition Manager logged failed replica writes while that node was down. We picked Cloud Logging because Flink on Dataproc and the Cloud Function are outside GKE, and it collects all of them in one place."*
+🗣 *"Every service logs one JSON object per line, and Cloud Logging collects them. Here Partition Manager logged 'read failed, trying next replica' exactly while sensor-store-1 was down. That's the replica fallback working: the read didn't fail, it went to the next copy. We picked Cloud Logging because Flink on Dataproc and the Cloud Function are outside GKE, and it collects all of them in one place."*
 
 ---
 
