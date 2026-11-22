@@ -1,0 +1,185 @@
+# Person 3: GCP Console demo (practice sheet)
+
+Only my part: (f) consistent hashing, (c) GKE + HPA + k6, (h) monitoring and logging.
+My services: **Partition Manager** and **Sensor Store**.
+Everything is clicked in the console. The only typing is one block in **Cloud Shell** (the `>_` icon at the top right) to start the load test.
+
+Marked ✅ = checked on the live console. Marked ⏳ = not checked yet, so the exact button may look slightly different.
+
+---
+
+## My opening line (learn by heart)
+
+> "I'm Person 3. I did the main concept for S1, **data partitioning using consistent hashing**. I also did **GKE with autoscaling and a k6 load test**, and **monitoring with Prometheus, Grafana and Cloud Logging**. My two services are **Partition Manager** and **Sensor Store**."
+
+---
+
+## Step 1. The cluster ✅
+
+**Clicks:** project **S1 Smart Agriculture** → ☰ → **Kubernetes Engine** → **Clusters** → click **`s1-gke`**.
+- **Details:** Location `us-central1-a` (zonal).
+- **Nodes** tab: node pool **`main`**, machine `e2-standard-2`, autoscaling **2–4 nodes**.
+
+🗣 *"This is our GKE cluster, `s1-gke`, a zonal cluster in us-central1-a, created by Terraform. One node pool of e2-standard-2 machines that autoscales from 2 to 4 VMs. ArgoCD deploys our services onto it."*
+
+If the clusters list is empty: the cluster is destroyed after every session to save credit (`infra/scripts/down.sh`).
+
+---
+
+## Step 2. My two services ✅
+
+**Clicks:** left menu **Workloads** → **Namespace** dropdown at the top → **`s1`**.
+
+| Row | Type | Pods | Owner |
+|---|---|---|---|
+| **partition-manager** | Deployment | 2/2 | **me** |
+| **sensor-store** | Stateful Set | 4/4 | **me** |
+| telemetry-ingestion, farm-analytics | Deployment | | Person 2 |
+| farm-registry, sensor-registry, irrigation-controller | Deployment | | Person 1 |
+
+🗣 *"These are all our services on GKE, in the `s1` namespace. Mine are these two. **partition-manager** is a Deployment with 2 pods. It's the router that holds the consistent-hash ring. **sensor-store** is a StatefulSet with 4 pods, the 4 storage nodes on the ring."*
+
+### 2a. Click `partition-manager` → Deployment details ✅
+Tabs: *Overview · Details · Observability · **Scaling** · Revision history · Events · Logs · App Errors · YAML*
+
+**Overview tab, the 3 graphs (CPU, Memory, Disk).** Each graph has up to 3 lines:
+- **Red** = the **limit** (the most the pods may use). CPU: 0.5 core per pod × 2 pods = **1 core**.
+- **Green** = the **request** (what each pod is guaranteed). CPU: 0.1 core × 2 = **0.2 core**.
+- **Blue** = **actual usage**. Close to 0 when idle.
+
+**Below the graphs:**
+- **Replicas:** "2 updated, 2 ready, 2 available".
+- **Horizontal Pod Autoscaler: OK**. The autoscaler is attached.
+
+🗣 *"Partition Manager is stateless, so it's a Deployment. Right now there are 2 pods, using almost no CPU. The autoscaler is attached. When load comes, it adds pods."*
+
+### 2b. Scaling tab ⏳
+**Clicks:** **Scaling** tab → should show the HPA: **min 2, max 6, target CPU 50%**.
+
+🗣 *"The autoscaler keeps average CPU at 50% of the request. Minimum 2 pods so one can die without an outage, maximum 6 as our cost ceiling."*
+
+### 2c. Click `sensor-store` ⏳
+**Clicks:** back to **Workloads** → **sensor-store** → **Managed pods**: `sensor-store-0`, `-1`, `-2`, `-3`.
+
+🗣 *"Sensor Store is stateful, so it's a StatefulSet. Each pod has a fixed name, which is its name on the hash ring, and its own disk. It has no autoscaler. If the HPA added a pod it wouldn't be on the ring, and removing one would lose its share of the data. I add storage nodes on purpose, through the ring."*
+
+---
+
+## Step 3. Each storage node has its own disk ⏳
+
+**Clicks:** left menu **Storage** (namespace `s1`) → **Persistent Volume Claims**: `data-sensor-store-0` to `data-sensor-store-3`, 1 GB each.
+
+🗣 *"One disk per ring node. If a pod restarts, it gets the same disk back, so its data is still there."*
+
+---
+
+## Step 4. The ring membership in Firestore ⏳
+
+**Clicks:** top search bar → **Firestore** → database **`(default)`** → collection **`ring`** → document **`membership`**.
+Shows `version: 1` and `nodes:` the 4 sensor-store names.
+
+🗣 *"This is the ring membership: which nodes are on the ring, plus a version number. Every Partition Manager pod re-reads it every 5 seconds, so all routers agree. It can't live in pod memory because the autoscaler adds and removes pods."*
+
+---
+
+## Step 5. Autoscaling under load ⭐ ⏳
+
+**Open Cloud Shell** (`>_`, top right) and paste:
+
+```bash
+gcloud container clusters get-credentials s1-gke --zone us-central1-a --project s1-agri-ams-686974
+cd ~/s1-smart-agriculture 2>/dev/null && git pull || { git clone https://github.com/MrudulDhaduk/s1-smart-agriculture.git && cd s1-smart-agriculture; }
+kubectl delete job k6-pm-write -n s1 --ignore-not-found
+kubectl delete configmap k6-script k6-contracts -n s1 --ignore-not-found
+kubectl create configmap k6-script -n s1 --from-file=loadtest/pm-write.js
+kubectl create configmap k6-contracts -n s1 --from-file=contracts/partition_manager.proto --from-file=contracts/reading.proto
+kubectl apply -f loadtest/k6-gke.yaml
+```
+
+**Then in the console:**
+1. **Workloads**: a new row **`k6-pm-write`** (a Job) appears. That's the load test.
+2. Click **partition-manager** → **Overview**. Refresh every ~30 s:
+   - **Blue CPU line** climbs.
+   - **Replicas** goes **2 → 6**.
+3. The test runs ~5 min. A few minutes after it ends, replicas go back to **2**.
+
+🗣 *"k6 runs as a Job inside the cluster and sends about 150 writes per second. CPU goes past the 50% target, so the HPA adds pods, up to our maximum of 6. When the load stops it waits, so it doesn't flap, then scales back to 2."*
+
+Why k6 runs inside the cluster: from outside, a port-forward would send all traffic to one pod, so the new pods would get none.
+
+---
+
+## Step 6. A storage node fails ⏳
+
+**Clicks:** **Workloads** → **sensor-store** → **Managed pods** → click **`sensor-store-1`** → **Delete** (top) → confirm.
+Go back to **sensor-store**. Within about a minute **`sensor-store-1` is back**, with the same name and a young age.
+
+🗣 *"I killed a storage node. Kubernetes recreated it with the same name and the same disk. No data was lost meanwhile: each reading has 3 copies, writes only need 2 of the 3 to confirm, and reads fall back to the next replica."*
+
+---
+
+## Step 7. Centralised logging ⏳
+
+**Clicks:** search bar → **Logs Explorer** → time **Last 1 hour** → paste the query → **Run query**.
+
+```
+resource.type="k8s_container"
+resource.labels.namespace_name="s1"
+resource.labels.container_name="partition-manager"
+severity>=WARNING
+```
+
+Shows **`replica write failed`** warnings from when `sensor-store-1` was down.
+To show every service, remove the last two lines and add `jsonPayload.service:*`.
+
+🗣 *"Every service logs one JSON object per line, and Cloud Logging collects them. Here Partition Manager logged failed replica writes while that node was down. We picked Cloud Logging because Flink on Dataproc and the Cloud Function are outside GKE, and it collects all of them in one place."*
+
+---
+
+## Grafana (only if he asks)
+
+Grafana runs inside the cluster, not in the GCP console. Steps are in `docs/p3-viva-runbook.md`, section "If the examiner wants GKE live", step 6.
+
+---
+
+## Words not to mix up
+
+| | Meaning |
+|---|---|
+| **Node** (Kubernetes) | a **VM** in the cluster (2–4 `e2-standard-2`) |
+| **Pod** | one running copy of a service; runs on a node |
+| **Ring node** | one **Sensor Store pod** placed on the hash ring |
+| **HPA** | adds/removes **pods** (Partition Manager 2→6) |
+| **Cluster autoscaler** | adds/removes **nodes/VMs** (2→4) |
+| **Deployment** | stateless, identical pods (Partition Manager) |
+| **StatefulSet** | fixed names + own disk per pod (Sensor Store) |
+| **Ring version** | goes up each time a node joins/leaves the ring |
+
+---
+
+## Short answers to basic questions
+
+| Question | Answer |
+|---|---|
+| What is consistent hashing? | Nodes and sensors are hashed onto a circle. A sensor belongs to the next node clockwise. |
+| Why not `hash % N`? | Every sensor's node depends on N, so changing N moves almost everything (~80%). On the ring a new node takes only the arc before it, ~1/N (~18%). |
+| Why virtual nodes? | 100 spots per node spread data evenly. With 1 spot, one node got 62%. |
+| Why 3 copies? | One node can die and nothing is lost. A write is OK when 2 of 3 confirm. |
+| Node vs pod? | Node = VM. Pod = one running copy of a service, running on a node. |
+| Why no HPA on Sensor Store? | It's stateful. An autoscaled pod wouldn't be on the ring; removing one loses its data. |
+| Why did it stop at 6 pods? | `maxReplicas: 6`, our cost ceiling. |
+| What does 300% CPU mean? | 3× the pod's CPU **request** (0.1 core), so ~0.3 core. |
+| Where is the ring stored? | Firestore, collection `ring`, document `membership`. |
+| Push or pull for Prometheus? | Pull: it scrapes each pod's `/metrics` every 15 s. |
+| Why was the cluster list empty? | We destroy the cluster after each session to save credit. |
+
+---
+
+## Practice on your own
+
+1. Ask Person 1 to start the cluster (`infra/scripts/up.sh`, ~20 min), or check that it's up: **Kubernetes Engine → Clusters**.
+2. Read the opening line out loud.
+3. Do steps 1 → 7 in order, saying each 🗣 line **out loud** while you click. Time yourself: aim for under 10 minutes.
+4. Close this file and do it again from memory. Peek only when stuck.
+5. Ask yourself 3 random questions from the table and answer them out loud.
+6. When finished: tell Person 1, so they run `infra/scripts/down.sh`.
