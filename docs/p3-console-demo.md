@@ -75,8 +75,19 @@ Tabs: *Overview · Details · Observability · **Scaling** · Revision history �
 The HPA formula (if asked): `desired pods = ceil(current pods × current CPU ÷ target CPU)`.
 Example: 2 pods at 150% → `ceil(2 × 150 ÷ 50)` = **6**.
 
-### 2c. Click `sensor-store` ⏳
-**Clicks:** back to **Workloads** → **sensor-store** → **Managed pods**: `sensor-store-0`, `-1`, `-2`, `-3`.
+### 2c. Click `sensor-store` ✅ (top part) / ⏳ (Managed pods)
+**Clicks:** ← back to **Workloads** → **sensor-store** → opens **Stateful Set details**.
+Tabs: *Details · Scaling · Events · Revision history · Logs · YAML* (no Overview tab here).
+
+**Details tab, graphs** (totals for all 4 pods):
+- **CPU:** green line at **0.4** = request 0.1 core × 4 pods. **No red line**, because Sensor Store has no CPU limit. Blue (usage) near 0.
+- **Memory:** red ≈ **1,000 MiB** = limit 256 MiB × 4. Green **500 MiB** = request 128 MiB × 4. Blue = usage.
+
+**Below the graphs:**
+- **Annotations:** `argocd.argoproj.io/tracking-id: s1:apps/StatefulSet:s1/sensor-store`. This proves **ArgoCD deployed it** from Git, not someone typing kubectl.
+- **Label selector:** `app = sensor-store`.
+
+**Scroll down → Managed pods:** `sensor-store-0`, `-1`, `-2`, `-3`.
 
 🗣 *"Sensor Store is stateful, so it's a StatefulSet. Each pod has a fixed name, which is its name on the hash ring, and its own disk. It has no autoscaler. If the HPA added a pod it wouldn't be on the ring, and removing one would lose its share of the data. I add storage nodes on purpose, through the ring."*
 
