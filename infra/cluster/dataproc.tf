@@ -35,10 +35,18 @@ resource "google_dataproc_cluster" "flink" {
     temp_bucket    = google_storage_bucket.dataproc["temp"].name
 
     gce_cluster_config {
-      zone                   = var.zone
-      subnetwork             = local.foundation.subnetwork
-      service_account        = local.sa_email["dataproc"]
-      service_account_scopes = ["cloud-platform"]
+      zone            = var.zone
+      subnetwork      = local.foundation.subnetwork
+      service_account = local.sa_email["dataproc"]
+      # Access is decided by the service account's IAM roles; cloud-platform lets them apply.
+      # Dataproc always adds the other three scopes to the VMs. Listing them here keeps the
+      # plan clean: with cloud-platform alone, every plan wanted to replace the cluster.
+      service_account_scopes = [
+        "https://www.googleapis.com/auth/cloud-platform",
+        "https://www.googleapis.com/auth/cloud.useraccounts.readonly",
+        "https://www.googleapis.com/auth/devstorage.read_write",
+        "https://www.googleapis.com/auth/logging.write",
+      ]
       # Image 2.2+ defaults to internal IPs only. The Flink job must reach Aiven Kafka on
       # the internet, and without an external IP that would need Cloud NAT.
       internal_ip_only = false

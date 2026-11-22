@@ -84,6 +84,25 @@ curl -s http://$IP/irrigation/recommendations | python -m json.tool
 curl -s -X POST -d '' http://$IP/irrigation/evaluate     # -d '': Google's load balancer rejects a POST without Content-Length (411)
 ```
 
+Seeding is needed only once: the registries live in Cloud SQL, which survives `down.sh`. Running the seeder again
+stops at the first farm with `500` (duplicate `farm1` in the server log); check with `curl -s http://$IP/farms`.
+
+**Flink is not restarted by `up.sh`:** a new Dataproc cluster has no job. Submit it after every `up.sh`, then send
+readings so windows appear (first result about a minute after the first full window):
+
+```bash
+gcloud dataproc jobs submit flink --cluster=s1-flink --region=us-central1 --async \
+  --jar=gs://$PROJECT-s1-artifacts/flink/flink-job-1.0.0.jar \
+  --properties=parallelism.default=1,jobmanager.memory.process.size=1600m,taskmanager.memory.process.size=1728m,taskmanager.numberOfTaskSlots=1 \
+  -- --KAFKA_CLIENT_PROPERTIES_SECRET projects/$PROJECT/secrets/kafka-client-properties/versions/latest
+gcloud dataproc jobs list --region=us-central1 --cluster=s1-flink          # RUNNING
+python tools/simulate_sensors.py --url http://$IP --rate 20 --dry farm1-plot2 --duration 300
+curl -s http://$IP/analytics/farms/farm1 | python -m json.tool             # totals.windows grows
+```
+
+No `flink:` prefix on the properties: with it the job fails at once ("Parallelism must be at least one").
+A running job also keeps Dataproc's 2-hour idle auto-delete from firing; `down.sh` destroys the cluster and the job with it.
+
 ## Deploying an app change (GitOps)
 
 ```bash
