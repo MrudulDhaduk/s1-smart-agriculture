@@ -155,6 +155,10 @@ kubectl apply -f loadtest/k6-gke.yaml
    - (The **Overview** tab shows the same as graphs: the blue CPU line climbs.)
 3. The test runs ~5 min. A few minutes after it ends, replicas go back to **2**.
 
+**Seen live on 22 Nov ✅:** Pods **6 of 6**, CPU utilization **256%** (top box) and **"218% out of 50%"** (HPA box), bar orange.
+- The two CPU numbers differ a little because they're sampled at slightly different times. Both are far above 50%.
+- Even at 6 pods CPU is still above 50%. The formula would ask for `ceil(6 × 218 ÷ 50)` = 27 pods, but **max is 6**, so it stays at 6.
+
 🗣 *"k6 runs as a Job inside the cluster and sends about 150 writes per second. CPU goes past the 50% target, so the HPA adds pods, up to our maximum of 6. When the load stops it waits, so it doesn't flap, then scales back to 2."*
 
 Why k6 runs inside the cluster: from outside, a port-forward would send all traffic to one pod, so the new pods would get none.
