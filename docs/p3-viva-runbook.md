@@ -337,7 +337,7 @@ Show the screenshots in this order. The screenshots are kept outside the repo. T
 
 - Telemetry Ingestion needed 7 simulator processes to pass 50% CPU. One Python process could not load it enough.
 - The node-join demo was not run on GKE. It was measured on the laptop cluster (Part 5 and section 3.4 of the design doc).
-- Sensor IDs are logged only on warnings, not on every successful write. Dataproc cluster logs reach Cloud Logging, but log lines from the Flink job itself were not found, and Alert-function logs were not checked.
+- Sensor IDs are logged only on warnings, not on every successful write. Flink job logs are under `resource.type="cloud_dataproc_job"` (filter by job id), not `cloud_dataproc_cluster`; Alert Service logs are under `resource.type="cloud_run_revision"`, service `alert-service`. Both were checked on 22 Nov.
 
 The file `08-telemetry-hpa-after.png` shows lines from before the peak, not after it. Leave it out, and use `08-hpa-final.png` for the end state.
 

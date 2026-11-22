@@ -106,12 +106,12 @@ taskmanager.numberOfTaskSlots=1
 
 Parallelism `1` resolves the invalid-parallelism submission failure. One TaskManager slot, with the stated JobManager and TaskManager process memory allocations, resolves YARN's task-slot allocation failure on this single-node cluster. These values are the observed working configuration for this deployment; they are not a general production sizing recommendation.
 
-The relevant submission shape (with the project Secret Manager resource name as the application argument) is:
+The relevant submission shape (with the project Secret Manager resource name as the application argument) is below. Pass the properties **without** a `flink:` prefix: with the prefix Flink does not see them and the job fails at once with "Parallelism must be at least one" (seen on 22 Nov 2026).
 
 ```sh
 gcloud dataproc jobs submit flink --cluster=s1-flink --region=us-central1 \
   --jar=gs://s1-agri-ams-686974-s1-artifacts/flink/flink-job-1.0.0.jar \
-  --properties=flink:parallelism.default=1,flink:jobmanager.memory.process.size=1600m,flink:taskmanager.memory.process.size=1728m,flink:taskmanager.numberOfTaskSlots=1 \
+  --properties=parallelism.default=1,jobmanager.memory.process.size=1600m,taskmanager.memory.process.size=1728m,taskmanager.numberOfTaskSlots=1 \
   -- --KAFKA_CLIENT_PROPERTIES_SECRET projects/s1-agri-ams-686974/secrets/kafka-client-properties/versions/latest
 ```
 
@@ -124,7 +124,12 @@ The following is the deployment and integration result reported by the team on *
 - `GET http://34.8.83.183/analytics/farms/farm1` returned a latest one-minute window with **192 readings from 40 sensors** and **33.3% average moisture**. The update appeared about **12 seconds after window end**.
 - The reported cumulative totals were **18 windows** and **2,357 readings**.
 
-This verifies the reported Telemetry Ingestion → Kafka `readings` → Flink → Kafka `results` → Farm Analytics → Firestore/API path for that run. It does not establish sustained throughput, recovery after a Flink restart, exactly-once delivery, or behavior for late events beyond the local tests. The available team notes do not independently confirm the Alert Service's live Pub/Sub-to-Firestore/GCS path for the same session, nor Flink's own application logs in Cloud Logging; cluster service logs were observed by Person 3, but those are distinct from the Flink job's own log lines.
+This verifies the reported Telemetry Ingestion → Kafka `readings` → Flink → Kafka `results` → Farm Analytics → Firestore/API path for that run. It does not establish sustained throughput, recovery after a Flink restart, exactly-once delivery, or behavior for late events beyond the local tests. Two further points were checked after that run:
+
+- **Alert Service live path:** on 16 Nov a published alert was stored in Firestore (`alerts/DRY_SOIL-farm7-plot2-1794846195536`) and archived in the archive bucket; on 22 Nov, after a rebuild, the function logged `alert processed` for live `DRY_SOIL` alerts from the Irrigation Controller, and 4 `DRY_SOIL` and 20 `SENSOR_SILENT` alerts were archived under `alerts/2026/11/22/`.
+- **Flink's own logs in Cloud Logging:** `resource.type="cloud_dataproc_job" AND resource.labels.job_id="<job id>" AND logName:"dataproc.job.yarn.container"` returns the job's container log lines (815 entries on 16 Nov; 765 within the first hour on 22 Nov, job `7c1e3ccee5ae46ac87cc57452faf86c0`).
+
+On 22 Nov the rebuilt system also produced new `farm1` windows end to end (window 20 onward).
 
 ## 6. Known limitations
 
@@ -143,6 +148,6 @@ This verifies the reported Telemetry Ingestion → Kafka `readings` → Flink �
 |---|---|
 | Telemetry Ingestion, Alert Service, Flink, Farm Analytics source and local tests | Implemented; test commands are documented above. |
 | Cloud deployment and GKE end-to-end analytics | Team-reported successful verification on November 16, 2026, with the measured values above. |
-| Person 2 identity in `task_divison.txt` | Confirmed: Pranav Harresh Vishwanathan (`2026H1030074P`). Ensure the roster uses this exact ID instead of the previously entered `H20260074P`. |
-| Live Alert Service / Pub/Sub / Firestore / GCS verification | Not established by the available verification notes. |
-| Flink job's own Cloud Logging output | Not established by the available verification notes. |
+| Person 2 identity in `task_divison.txt` | Confirmed: Pranav Harresh Vishwanathan (`2026H1030074P`). |
+| Live Alert Service / Pub/Sub / Firestore / GCS verification | Verified on 16 Nov and again on 22 Nov (section 5). |
+| Flink job's own Cloud Logging output | Verified: `resource.type="cloud_dataproc_job"` with the job id (section 5). |
