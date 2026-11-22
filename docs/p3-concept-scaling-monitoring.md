@@ -162,6 +162,16 @@ The earlier version reported no errors at all, yet silently left a quarter of th
 
 Every old node gave up a share, the new node received 2.96K copies (about 3/5 of the sensors, because it is one of 3 owners of each sensor it holds), and the total stayed at exactly 3 copies per sensor.
 
+**The same join on GKE (22 Nov 2026).** 2,000 readings for 200 sensors were written first (600 copies), then `sensor-store-4` was created by scaling the StatefulSet to 5 and added with `pmctl add-node`. ArgoCD's self-healing for the `s1` app was paused for this, because it would otherwise scale the StatefulSet back to the 4 replicas in Git.
+
+| | node 0 | node 1 | node 2 | node 3 | node 4 | total |
+|---|---|---|---|---|---|---|
+| before the join (ring version 1) | 139 | 153 | 156 | 152 | | 600 |
+| after the join (ring version 2) | 111 | 123 | 130 | 126 | **110** | 600 |
+| after removing it again (ring version 3) | 139 | 153 | 156 | 152 | | 600 |
+
+110 of 600 copies moved (18%, close to the minimum of 1/5), every old node gave up 26 to 30, and none were lost. Removing the node restored exactly the original placement, because the ring is deterministic: the same set of nodes always gives the same layout. The Firestore document `ring/membership` showed version 2 with 5 nodes during the join.
+
 ![Grafana after the node join](images/grafana-after-node-join.png)
 
 ---
@@ -374,5 +384,5 @@ Loki was the alternative. It was rejected because it would need extra log shippi
 | Cloud Logging for the GKE pods | ✅ 1,541 JSON entries; 213 replica-failure warnings found by one query (section 5.3) |
 | Dataproc logs in Cloud Logging | ✅ 5,157 cluster log entries in one hour (YARN, Hive, HDFS) |
 | End-to-end: Telemetry Ingestion → Kafka → Flink → Farm Analytics | ✅ 16 Nov 2026: readings sent with `tools/simulate_sensors.py`; `GET /analytics/farms/farm1` returned a 1-minute window of 192 readings from 40 sensors (avg moisture 33.3%), updated about 12 s after the window closed |
-| Flink job's own logs and the Alert function in Cloud Logging | ⏳ not found / not checked |
-| Node join (rebalance) on GKE | ⏳ not run on GKE; measured on the laptop cluster (section 3.4) |
+| Flink job's own logs and the Alert function in Cloud Logging | ✅ found by Person 1 on 22 Nov: Flink under `cloud_dataproc_job`, Alert Service under `cloud_run_revision` (section 5.3) |
+| Node join (rebalance) on GKE | ✅ 22 Nov 2026: 110 of 600 copies moved to the new node, none lost; removal restored the original placement (section 3.4) |

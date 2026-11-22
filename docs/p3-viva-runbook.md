@@ -330,13 +330,13 @@ Show the screenshots in this order. The screenshots are kept outside the repo. T
 | `10`, `11`, `12` | `sensor-store-1` was primary; deleted; read still returned moisture 38.6%; pod back in 69 s | "The node failure test on GKE: I deleted the primary, the read still worked from a replica, and Kubernetes brought the pod back in about 69 seconds." |
 | `09-cloud-logging-all-services.png` | 1,541 JSON log entries from the `s1` namespace | "Centralised logging: every service writes one JSON object per line and Cloud Logging collects them. One query searches all services." |
 | `13-cloud-logging-replica-failure.png` | 213 `replica write failed` warnings | "These are the 213 warnings Partition Manager logged while that node was down, each with the node and the sensor ID." |
+| Node join on GKE (22 Nov, no screenshot needed: say the numbers) | Before 139, 153, 156, 152 = 600 copies; after adding `sensor-store-4`: 111, 123, 130, 126, 110 = 600; after removing it: 139, 153, 156, 152 again | "On GKE I added a fifth node: only 110 of 600 copies moved, 18%, all onto the new node, and none were lost. Removing it put every copy back exactly where it was, because the ring is deterministic." |
 | `14-cloud-logging-dataproc.png` | 5,157 Dataproc cluster log entries in one hour | "Logs from the Dataproc cluster that runs Flink arrive in the same place, outside GKE." |
 | `15-farm-analytics-flink-result.png` | `farm1`: 192 readings from 40 sensors in one 1-minute window, avg moisture 33.3% | "End to end: readings sent through Telemetry Ingestion went through Kafka and Flink and appear in Farm Analytics about 12 seconds after the window closed." |
 
-**Be honest about three things if asked:**
+**Be honest about these if asked:**
 
 - Telemetry Ingestion needed 7 simulator processes to pass 50% CPU. One Python process could not load it enough.
-- The node-join demo was not run on GKE. It was measured on the laptop cluster (Part 5 and section 3.4 of the design doc).
 - Sensor IDs are logged only on warnings, not on every successful write. Flink job logs are under `resource.type="cloud_dataproc_job"` (filter by job id), not `cloud_dataproc_cluster`; Alert Service logs are under `resource.type="cloud_run_revision"`, service `alert-service`. Both were checked on 22 Nov.
 
 The file `08-telemetry-hpa-after.png` shows lines from before the peak, not after it. Leave it out, and use `08-hpa-final.png` for the end state.
