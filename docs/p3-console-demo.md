@@ -25,6 +25,7 @@ All steps below were checked live on 22 Nov 2026.
 | 10 | 0:30 | Cloud Shell: `kubectl logs -n s1 job/k6-pm-write --tail=40` | checks 100%, ~150/s, p95 | "No write failed, even with a node down" |
 | 11 | 1 | **Logs Explorer**, Warning query | "read failed, trying next replica" at the kill time | "Replica fallback, in the logs" |
 | 12 | — | partition-manager → **Scaling** (a few min later) | back to 2 of 2 | "Scales back in" |
+| 13 | *if asked* | **Grafana** (Cloud Shell, see the Grafana section) | 4 rows, equal bars per ring node | "Prometheus pulls metrics every 15 s" |
 
 **After the demo:** in Cloud Shell `kubectl delete job k6-pm-write -n s1`, then tell Person 1 to run `infra/scripts/down.sh`.
 
@@ -292,7 +293,7 @@ Severity icons: blue **i** = Info (e.g. "control cycle"), yellow **!** = Warning
 
 ## Grafana (only if he asks)
 
-Grafana runs inside the cluster, so it has no page in the GCP console. Open it through **Cloud Shell**. ⏳ not yet walked live in this sheet.
+Grafana runs inside the cluster, so it has no page in the GCP console. Open it through **Cloud Shell**. ✅ walked live on 23 Nov.
 
 **Open it (one time per session):**
 1. Cloud Shell: stop ArgoCD from undoing the next change (it would revert it):
@@ -331,7 +332,23 @@ Why step 4: Grafana refuses logins from an unknown web address. Cloud Shell's pr
 | **4 Cluster health** | App pods running / not ready / restarts | "All running" |
 | | Machine CPU %, Machine memory % | "The VMs themselves" |
 
-**For live lines:** start the k6 test (Step 5) after opening Grafana, and kill a node (Step 6) during it.
+**For live lines:** start the k6 test (Step 5 block) in a **second Cloud Shell tab** after opening Grafana, and kill a node (Step 6) about 2 minutes in.
+
+**What reacts when you kill the node:** "failed replica writes %" bumps up while failed requests stay at 0; that node's line in "Writes per second per ring node" dips; "App pods" dips and comes back.
+
+🗣 *"This is Grafana. The data comes from Prometheus, which pulls each pod's metrics every 15 seconds. Row 1 is traffic, row 2 is autoscaling, row 3 is my consistent hashing, row 4 is cluster health."*
+
+**Is pausing self-heal on `monitoring` risky?** No.
+- It only affects the `monitoring` app (Prometheus + Grafana). The `s1` app (all services) keeps self-heal on.
+- Auto-sync from Git still works; only "revert manual changes" is paused, so the one Grafana setting stays.
+- The ArgoCD tile `monitoring` shows **OutOfSync** (expected) but **Healthy**.
+- A killed pod **still comes back**: that's Kubernetes (the StatefulSet wants 4 pods), not ArgoCD.
+- `down.sh` + `up.sh` recreate the Applications with self-heal on. To undo now:
+```bash
+kubectl -n argocd patch application monitoring --type merge -p '{"spec":{"syncPolicy":{"automated":{"selfHeal":true}}}}'
+```
+
+**After the demo:** `kubectl delete job k6-pm-write -n s1`.
 
 ---
 
@@ -396,3 +413,58 @@ Why step 4: Grafana refuses logins from an unknown web address. Cloud Shell's pr
 | 7 Limitations | 5 s disagreement window · no hinted handoff · slow sequential rebalance · rebalance inside an autoscaled pod · ListSensors 4 MB · no auth on AddNode · not machine-aware placement · **lost update (fixed: compare-and-set)** · counters in pod memory. |
 
 **Why the ring is at version 5:** GKE join test v1 → 2 (add) → 3 (remove), then the compare-and-set test v3 → 4 → 5.
+
+---
+
+## Concepts explained (study notes)
+
+### Rebalancing when a node joins (4 steps)
+Example: sensor `farm1-plot1-s1` is on **[node0, node1, node2]**. After adding node4 its owners become **[node4, node1, node2]**: node4 gains a copy, node0 loses one. Only ~1/5 of sensors change like this.
+Complication: Partition Manager pods re-read the ring only **every 5 s**, so for a few seconds some use the old ring and some the new.
+
+1. **Copy:** copy every sensor whose owners gain a node to that node (`farm1-plot1-s1` → node4). All routers are still on the old ring, nothing breaks.
+2. **Switch + wait:** save the new ring to Firestore (version + 1, compare-and-set), then **wait 6 s** so every router pod has it.
+3. **Catch up:** re-scan everything and copy what slow routers wrote to old owners during the wait, plus brand-new sensors.
+4. **Clean up:** only now delete copies from nodes that no longer own them (node0). Only if the copy really arrived.
+
+**Where do reads go during the 6-second wait?** Each router reads from the primary **on its own ring**: old-ring pods → node0, new-ring pods → node4. **Both have the data** (copied before the switch, deleted only after). Side effect: for a few seconds a read can return the **previous** reading instead of the newest one. Nothing is lost; step 3 fixes it. That's known limitation #1 ("routers can disagree for up to 5 s").
+
+**Why the order matters:** the first version had no wait and no full re-scan → zero errors but **26% of sensors misplaced**. Now: **0**.
+
+🗣 *"Copy the sensors the new node owns, switch the ring version and wait until every router has it, copy what was written through the old ring meanwhile, and only then delete old copies."*
+
+### The race condition: compare-and-set (notebook analogy)
+| Analogy | Real thing |
+|---|---|
+| Shared notebook | **Firestore** |
+| The one page | document **`ring/membership`** |
+| Page number | field **`version`** |
+| List on the page | field **`nodes`** (`sensor-store-0` … `-3`) |
+| People reading every 5 s | **Partition Manager pods** |
+| "Add node4" / "Remove node3" | `pmctl add-node sensor-store-4` / `pmctl remove-node sensor-store-3` (gRPC **AddNode** / **RemoveNode**) |
+| "Still the page I read?" | **compare-and-set** (`save_if` in `membership.py`) |
+| Check and write in one go | **Firestore transaction** |
+| "Rejected, try again" | gRPC **`ABORTED`** + WARNING `membership change rejected` |
+
+**Bug:** two pods both read version 5, both write version 6, the second overwrites the first (node4 vanishes). A **lost update**.
+**Fix:** save only if the version is still 5. The slower pod sees 6, is rejected with ABORTED, the admin re-runs it, and it writes version 7. Both changes kept.
+Commit `c6133ec` (22 Nov), test `test_concurrent_ring_change_is_rejected_not_lost`. Testing it took the ring 3 → 4 → 5, which is why Firestore shows **version 5**.
+
+🗣 *"Two Partition Manager pods could change the ring at the same time and overwrite each other. Now the save is a compare-and-set in a Firestore transaction: it only writes if the version is still the one it read. Otherwise it returns ABORTED and you run it again."*
+
+### Where things live in the code (look at branch `main`)
+| Thing | File |
+|---|---|
+| Hash ring: MD5, 100 virtual nodes, 3 owners (`get_nodes`) | `services/partition-manager/ring.py` |
+| 80% vs 18% demo | `services/partition-manager/demo.py` |
+| Ring membership + `save_if` (compare-and-set) | `services/partition-manager/membership.py` |
+| Router: re-read every 5 s (`refresh`), `WriteReading` (2 of 3), `GetLatest` (fallback), `_change` (4-step rebalance), `MembershipConflict`, JSON `log()` | `services/partition-manager/server.py` |
+| Copy in batches of 2,000 | `services/partition-manager/transfer.py` |
+| Admin tool | `services/partition-manager/pmctl.py` |
+| Tests (9 + 13) | `test_ring.py`, `test_integration.py` |
+| Storage node (SQLite): `Put`, `GetLatest`, `ListSensors`, `DeleteSensor` | `services/sensor-store/server.py` |
+| gRPC contracts | `contracts/partition_manager.proto`, `sensor_store.proto`, `reading.proto` |
+| Deployment / HPA | `k8s/base/partition-manager/deployment.yaml`, `hpa.yaml` |
+| StatefulSet / headless Service / NetworkPolicy | `k8s/base/sensor-store/statefulset.yaml`, `service.yaml`, `networkpolicy.yaml` |
+| k6 test (checks, thresholds) / runs as a Job | `loadtest/pm-write.js`, `loadtest/k6-gke.yaml` |
+| Prometheus + Grafana settings / what to scrape / dashboard | `observability/kube-prometheus-stack-values.yaml`, `servicemonitors.yaml`, `dashboards/make_dashboard.py` |
