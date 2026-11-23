@@ -292,7 +292,43 @@ Severity icons: blue **i** = Info (e.g. "control cycle"), yellow **!** = Warning
 
 ## Grafana (only if he asks)
 
-Grafana runs inside the cluster, not in the GCP console. Steps are in `docs/p3-viva-runbook.md`, section "If the examiner wants GKE live", step 6.
+Grafana runs inside the cluster, so it has no page in the GCP console. Open it through **Cloud Shell**. ⏳ not yet walked live in this sheet.
+
+**Open it (one time per session):**
+1. Cloud Shell: stop ArgoCD from undoing the next change (it would revert it):
+```bash
+kubectl -n argocd patch application monitoring --type merge -p '{"spec":{"syncPolicy":{"automated":{"selfHeal":false}}}}'
+```
+2. Start the tunnel:
+```bash
+kubectl port-forward -n monitoring svc/monitoring-grafana 3000:3000
+```
+3. Cloud Shell toolbar → **Web Preview** (eye icon) → **Change port** → `3000` → **Change and preview**. A new tab opens. Copy its **hostname** (between `https://` and the first `/`).
+4. Back in Cloud Shell press **Ctrl+C**, then (with your hostname):
+```bash
+kubectl set env deploy/monitoring-grafana -n monitoring -c grafana GF_SECURITY_CSRF_TRUSTED_ORIGINS=<hostname>
+kubectl rollout status deploy/monitoring-grafana -n monitoring && kubectl port-forward -n monitoring svc/monitoring-grafana 3000:3000
+```
+5. Refresh the preview tab → log in **`admin` / `admin`** → ☰ **Dashboards** → **S1 Smart Agriculture: partitioning and scaling** → time range (top right) **Last 30 minutes**, refresh **10s**.
+
+Why step 4: Grafana refuses logins from an unknown web address. Cloud Shell's preview address is unknown to it, so we tell Grafana to trust it.
+
+**The dashboard: 15 panels in 4 rows.** Data comes from **Prometheus**, which scrapes each pod's `/metrics` every 15 s.
+
+| Row | Panel | What to say |
+|---|---|---|
+| **1 Traffic** (golden signals) | Requests per second | "~150 per second during k6" |
+| | Error rate % | "Failed requests 0%. Failed replica writes jump only while a node is dead" |
+| | WriteReading latency p50/p95/p99 | "p95 under 1 s" |
+| **2 Scaling** | Partition Manager pods (current / desired / max) | "2 → 6 → 2. Desired goes above 6, the max line holds it" |
+| | CPU per pod (millicores, target 50m) | "50m = 50% of the 0.1-core request" |
+| **3 Partitioning** | Sensors stored per ring node (bars) | "Four almost equal bars = consistent hashing spreading data evenly" |
+| | Writes per second per ring node | "Four almost identical lines" |
+| | Ring (version, nodes, rebalance events, sensors moved) | "Version 5, 4 nodes" |
+| **4 Cluster health** | App pods running / not ready / restarts | "All running" |
+| | Machine CPU %, Machine memory % | "The VMs themselves" |
+
+**For live lines:** start the k6 test (Step 5) after opening Grafana, and kill a node (Step 6) during it.
 
 ---
 
