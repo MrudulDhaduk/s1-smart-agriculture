@@ -448,7 +448,7 @@ kubectl -n argocd patch application monitoring --type merge -p '{"spec":{"syncPo
 
 | Section | Remember |
 |---|---|
-| 2 Consistent hashing | `% N` moved **80.2%**, ring **18.4%** (minimum 20%). 1 spot: one node got **62%** (6,204 of 10,000). 100 spots: ~2,500 each. 1 copy + crash: **74%** readable; 3 copies: **100%**; 3 of 4 dead: 71.8%. **MD5** (deterministic, not for security). Partition key **sensor_id** (not farm_id: hot keys). **22 tests** pass (9 unit + 13 end-to-end). |
+| 2 Consistent hashing | `% N` moved **80.2%**, ring **18.4%** (fair share 1/5 = 20%; a bit under by chance). 1 spot: one node got **62%** (6,204 of 10,000). 100 spots: ~2,500 each. 1 copy + crash: **74%** readable; 3 copies: **100%**; 3 of 4 dead: 71.8%. **MD5** (deterministic, not for security). Partition key **sensor_id** (not farm_id: hot keys). **22 tests** pass (9 unit + 13 end-to-end). |
 | 3.2 Write/read | Write to 3 in parallel, OK when **2 of 3** confirm **and the primary answered** (W=2, R=1, read-your-writes). Read primary → next replica. **Router, not lookup.** |
 | 3.3 Membership | `{version, nodes}` in Firestore, re-read every **5 s**. |
 | 3.4 Rebalance | 4 steps: **Copy → Switch + wait → Catch up → Clean up**. Batches of 2,000 (gRPC 4 MB limit). Idempotent (`INSERT OR REPLACE`), `pmctl repair`. Earlier version left **26% misplaced** silently; final: **0**. GKE join: **110 of 600** copies moved (18%), none lost; ring v1 → v2 → v3. |
