@@ -325,6 +325,7 @@ Grafana runs inside the cluster, not in the GCP console. Steps are in `docs/p3-v
 | What does 300% CPU mean? | 3× the pod's CPU **request** (0.1 core), so ~0.3 core. |
 | Where is the ring stored? | Firestore, collection `ring`, document `membership`. |
 | Push or pull for Prometheus? | Pull: it scrapes each pod's `/metrics` every 15 s. |
+| What race condition did you fix? | **Lost update** on the ring membership. Two router pods change the ring at the same time, both read version 5, both write version 6, and one change silently overwrites the other. Fix: **compare-and-set**. Save only if the stored version is still the one I read, inside a Firestore **transaction**. The slower change is rejected with `ABORTED` and can be run again. (Commit `c6133ec`, 22 Nov.) |
 | Why was the cluster list empty? | We destroy the cluster after each session to save credit. |
 
 ---
