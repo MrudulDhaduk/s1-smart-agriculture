@@ -11,7 +11,7 @@ service PartitionManager {
   rpc WriteReading (WriteReadingRequest) returns (WriteReadingResponse);
 
   // Irrigation Controller (P1): newest reading for each sensor asked for.
-  rpc GetLatest (GetLatestRequest) returns (GetLatestResponse);
+  rpc GetLatest (GetLatestRequest) returns (GetLatestResponse);//hello
 
   // Anyone: readings of one sensor in a time range (newest first).
   rpc GetHistory (GetHistoryRequest) returns (GetHistoryResponse);
