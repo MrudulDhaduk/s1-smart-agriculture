@@ -222,6 +222,37 @@ Firestore holds **no disks**. It only holds the ring membership list. The disks 
 
 🗣 *"I killed a storage node. Kubernetes recreated it with the same name and the same disk. No data was lost meanwhile: each reading has 3 copies, writes only need 2 of the 3 to confirm, and reads fall back to the next replica."*
 
+### 6b. Proving "all writes stayed green while a node was dead"
+
+Note the time you click Delete (e.g. 19:02). Then show these 3 proofs:
+
+**Proof 1, the k6 summary (strongest).** Cloud Shell, after k6 finishes:
+```bash
+kubectl logs -n s1 job/k6-pm-write --tail=20
+```
+Point at the **green ✓** lines:
+- `✓ status is OK` and `✓ stored on a majority of replicas`. A failed write would show **✗** in red.
+- `✓ checks: 100.00% 90666 out of 90666`. Every single write passed, including the ones during the kill.
+
+🗣 *"Every write is checked twice: the call succeeded, and the data was stored on a majority of replicas, 2 of 3. 100% passed, including the minutes when sensor-store-1 was dead."*
+
+**Proof 2, the Job status in the console.** **Workloads** → row **`k6-pm-write`** (Type: Job) → Status **OK / Completed**.
+The script has **thresholds**: checks must be above 95% and p95 under 1 s. If a threshold breaks, k6 exits with an error and the Job shows **Failed**. Green = the thresholds passed.
+
+**Proof 3, no errors in the logs.** **Logs Explorer**, Last 1 hour:
+```
+resource.type="k8s_container"
+resource.labels.namespace_name="s1"
+resource.labels.container_name="partition-manager"
+severity>=ERROR
+```
+→ **No results** (or none around the kill time). Partition Manager logs `request failed` at ERROR level whenever it rejects a request, so zero means no write was rejected.
+Then change `ERROR` to `WARNING` to show the node **was** really down: the `read failed, trying next replica` warnings at exactly the kill time.
+
+🗣 *"Warnings, yes: the node was down and my router noticed. Errors, none: no request failed, because it fell back to the other replicas."*
+
+**Live while it runs (optional):** in Cloud Shell, `kubectl logs -n s1 job/k6-pm-write -f` shows the completed-writes counter still climbing right after the kill, with `0 interrupted iterations`.
+
 ---
 
 ## Step 7. Centralised logging ✅
