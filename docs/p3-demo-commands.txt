@@ -9,7 +9,7 @@ pmctl() { kubectl exec -n s1 deploy/partition-manager -- python pmctl.py "$@"; }
 # ---- Slide 3: the concept ---------------------------------------------------------------
 (cd services/partition-manager && python3 demo.py)
 
-# ---- Step 4b: a 5th node joins (BEFORE the load test, HPA at 2 pods) -----------------------
+# ---- Backup only, if asked: a 5th node joins live (BEFORE the load test, HPA at 2 pods) -----
 pmctl write 2000 && pmctl stats
 kubectl -n argocd patch application s1 --type merge -p '{"spec":{"syncPolicy":{"automated":{"selfHeal":false}}}}'
 kubectl scale statefulset sensor-store -n s1 --replicas=5
