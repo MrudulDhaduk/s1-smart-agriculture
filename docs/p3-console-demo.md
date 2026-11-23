@@ -338,3 +338,22 @@ Grafana runs inside the cluster, not in the GCP console. Steps are in `docs/p3-v
 4. Close this file and do it again from memory. Peek only when stuck.
 5. Ask yourself 3 random questions from the table and answer them out loud.
 6. When finished: tell Person 1, so they run `infra/scripts/down.sh`.
+
+---
+
+## Design document, Part C (pages 13–24): numbers to remember
+
+| Section | Remember |
+|---|---|
+| 2 Consistent hashing | `% N` moved **80.2%**, ring **18.4%** (minimum 20%). 1 spot: one node got **62%** (6,204 of 10,000). 100 spots: ~2,500 each. 1 copy + crash: **74%** readable; 3 copies: **100%**; 3 of 4 dead: 71.8%. **MD5** (deterministic, not for security). Partition key **sensor_id** (not farm_id: hot keys). **22 tests** pass (9 unit + 13 end-to-end). |
+| 3.2 Write/read | Write to 3 in parallel, OK when **2 of 3** confirm **and the primary answered** (W=2, R=1, read-your-writes). Read primary → next replica. **Router, not lookup.** |
+| 3.3 Membership | `{version, nodes}` in Firestore, re-read every **5 s**. |
+| 3.4 Rebalance | 4 steps: **Copy → Switch + wait → Catch up → Clean up**. Batches of 2,000 (gRPC 4 MB limit). Idempotent (`INSERT OR REPLACE`), `pmctl repair`. Earlier version left **26% misplaced** silently; final: **0**. GKE join: **110 of 600** copies moved (18%), none lost; ring v1 → v2 → v3. |
+| 4.1 Kubernetes | Deployment / StatefulSet / headless Service / CPU requests / graceful shutdown / PDBs / topology spread / NetworkPolicy. |
+| 4.2 HPA | MAPE loop: Monitor (metrics-server) → Analyse (vs 50%) → Plan (`ceil(pods × CPU ÷ target)`) → Execute (2–6). 60 s scale-down window. |
+| 4.3 Laptop | 46,480 writes, ~155/s, 0 failed, p95 **377 ms**. 341% → `ceil(2×341÷50)=14`, capped at 6. |
+| 4.4 GKE (16 Nov) | 42,401 writes, ~141/s, 0 failed, p95 **777 ms**. PM 2→5→6→2. Telemetry 74% CPU, 2→3→4→2. Node failure: pod back in **69 s**, **213** "replica write failed" warnings. |
+| 5 Monitoring | Prometheus = **pull**, every **15 s**, ServiceMonitors. Grafana: **15 panels, 4 rows** (Traffic, Scaling, Partitioning, Cluster health). Logs: JSON per line, **1,541** entries. Loki rejected (Dataproc + Cloud Function are outside GKE). |
+| 7 Limitations | 5 s disagreement window · no hinted handoff · slow sequential rebalance · rebalance inside an autoscaled pod · ListSensors 4 MB · no auth on AddNode · not machine-aware placement · **lost update (fixed: compare-and-set)** · counters in pod memory. |
+
+**Why the ring is at version 5:** GKE join test v1 → 2 (add) → 3 (remove), then the compare-and-set test v3 → 4 → 5.
