@@ -1,0 +1,55 @@
+# Person 3 demo: every command, in order. Open it in Cloud Shell:  cat docs/p3-demo-commands.txt
+# (or Cloud Shell's "Open Editor" button), then copy one block at a time.
+
+# ---- 0. Setup (once per Cloud Shell session) ----------------------------------------------
+gcloud container clusters get-credentials s1-gke --zone us-central1-a --project s1-agri-ams-686974
+cd ~/s1-smart-agriculture 2>/dev/null && git pull || { git clone https://github.com/MrudulDhaduk/s1-smart-agriculture.git && cd s1-smart-agriculture; }
+pmctl() { kubectl exec -n s1 deploy/partition-manager -- python pmctl.py "$@"; }
+
+# ---- Slide 3: the concept ---------------------------------------------------------------
+(cd services/partition-manager && python3 demo.py)
+
+# ---- Step 4b: a 5th node joins (BEFORE the load test, HPA at 2 pods) -----------------------
+pmctl write 2000 && pmctl stats
+kubectl -n argocd patch application s1 --type merge -p '{"spec":{"syncPolicy":{"automated":{"selfHeal":false}}}}'
+kubectl scale statefulset sensor-store -n s1 --replicas=5
+kubectl rollout status statefulset sensor-store -n s1
+pmctl add-node sensor-store-4 && pmctl stats
+
+# ---- Step 4b undo (in this order) ----------------------------------------------------------
+pmctl remove-node sensor-store-4 && pmctl stats
+kubectl scale statefulset sensor-store -n s1 --replicas=4
+kubectl -n argocd patch application s1 --type merge -p '{"spec":{"syncPolicy":{"automated":{"selfHeal":true}}}}'
+
+# ---- Step 5: load test (then watch Workloads > partition-manager > Scaling tab) -------------
+kubectl delete job k6-pm-write -n s1 --ignore-not-found
+kubectl delete configmap k6-script k6-contracts -n s1 --ignore-not-found
+kubectl create configmap k6-script -n s1 --from-file=loadtest/pm-write.js
+kubectl create configmap k6-contracts -n s1 --from-file=contracts/partition_manager.proto --from-file=contracts/reading.proto
+kubectl apply -f loadtest/k6-gke.yaml
+
+# ---- Step 6: kill a node = console click (Workloads > sensor-store > sensor-store-1 > Delete) --
+# optional from here instead:
+# kubectl delete pod sensor-store-1 -n s1
+
+# ---- Step 6b: proof, after k6 finishes ------------------------------------------------------
+kubectl logs -n s1 job/k6-pm-write --tail=20
+
+# ---- Step 7: Logs Explorer queries (paste into the console, not the shell) ------------------
+# resource.type="k8s_container"
+# resource.labels.namespace_name="s1"
+# resource.labels.container_name="partition-manager"
+# severity>=WARNING
+#
+# resource.type="k8s_container"
+# resource.labels.namespace_name="s1"
+# jsonPayload.service:*
+
+# ---- Grafana (then Web Preview > Change port > 3000 > admin/admin) ---------------------------
+kubectl -n argocd patch application monitoring --type merge -p '{"spec":{"syncPolicy":{"automated":{"selfHeal":false}}}}'
+kubectl set env deploy/monitoring-grafana -n monitoring -c grafana GF_SECURITY_CSRF_TRUSTED_ORIGINS="3000-$WEB_HOST"
+kubectl rollout status deploy/monitoring-grafana -n monitoring && kubectl port-forward -n monitoring svc/monitoring-grafana 3000:3000
+
+# ---- After the demo -------------------------------------------------------------------------
+kubectl delete job k6-pm-write -n s1
+# then tell Person 1 to run infra/scripts/down.sh
