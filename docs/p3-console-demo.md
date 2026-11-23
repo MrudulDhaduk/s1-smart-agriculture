@@ -19,6 +19,7 @@ All steps below were checked live on 22 Nov 2026.
 | 4 | 1 | sensor-store → scroll to **Managed pods** + **Exposing services** | fixed names 0–3, headless service | "Name = place on the ring" |
 | 5 | 0:30 | Kubernetes Resources → **Storage** | `data-sensor-store-0..3` Bound | "One disk per node" |
 | 6 | 1 | **Firestore** → ring → membership | 4 nodes + version | "Routers re-read it every 5 s" |
+| 6b | 2 | **Cloud Shell**: Step 4b (node join), then undo | 5/5 pods, Firestore 5 nodes, stats | "Only ~1/5 moved" |
 | 7 | 0:30 | **Cloud Shell**: paste the Step 5 block | — | "k6 runs inside the cluster" |
 | 8 | 2 | partition-manager → **Scaling**, Refresh | Pods 2 → 6, "218% out of 50%" | "HPA scaled to the max of 6" |
 | 9 | 1 | *while k6 runs:* sensor-store → `sensor-store-1` → **Delete** → Refresh | new Created time, same name | "Same name, same disk" |
@@ -153,6 +154,52 @@ Shows:
 **The other collections** (`alerts`, `farm_summaries`, `irrigation_state`) belong to Person 1 and 2. Only `ring` is mine.
 
 🗣 *"This is the ring membership: which storage nodes are on the ring, plus a version number. Every Partition Manager pod re-reads it every 5 seconds, so all router pods agree on the same ring. It can't live in pod memory because the autoscaler adds and removes those pods. The version is 5 because I've tested adding and removing a fifth node. Each change bumps it by one, and Firestore keeps it between sessions."*
+
+---
+
+## Step 4b. A 5th node joins the ring (the S1 concept, live)
+
+**When:** right after Step 4 and **before** the k6 test. The HPA must be at 2 pods (a pod removed mid-rebalance would interrupt it), and the less data the faster the rebalance (copies one sensor at a time; k6 leaves ~5,000 sensors, which can take many minutes).
+
+**Cloud Shell:**
+```bash
+pmctl() { kubectl exec -n s1 deploy/partition-manager -- python pmctl.py "$@"; }
+pmctl write 2000 && pmctl stats
+```
+`stats` shows 4 nodes with roughly equal counts (each sensor counted on its 3 owners).
+
+ArgoCD would scale the StatefulSet straight back to the 4 replicas in Git (it only ignores replicas on **Deployments**), so pause self-heal on the `s1` app first:
+```bash
+kubectl -n argocd patch application s1 --type merge -p '{"spec":{"syncPolicy":{"automated":{"selfHeal":false}}}}'
+```
+1. Kubernetes creates the machine:
+```bash
+kubectl scale statefulset sensor-store -n s1 --replicas=5
+kubectl rollout status statefulset sensor-store -n s1
+```
+2. My Partition Manager puts it on the ring and rebalances (the command waits until done):
+```bash
+pmctl add-node sensor-store-4 && pmctl stats
+```
+
+**Show in the console:**
+- **Workloads → sensor-store**: **5/5** pods, `sensor-store-4` new.
+- **Storage**: `data-sensor-store-4` Bound.
+- **Firestore → ring → membership**: **version +1**, **5 nodes**.
+- `pmctl stats`: every old node gave up a share, `sensor-store-4` received ~3/5 of the sensors (it's one of 3 owners), total still 3 copies per sensor.
+- Grafana row 3: ring version, 5 nodes, sensors moved, 5 bars.
+
+🗣 *"Kubernetes created the machine, but it holds nothing until my Partition Manager puts it on the ring. The rebalance copies only the sensors the new node now owns, switches the ring version in Firestore, waits until every router pod uses it, catches up, then deletes the old copies. Only about a fifth of the data moved."*
+
+**Undo (in this order):**
+```bash
+pmctl remove-node sensor-store-4 && pmctl stats
+kubectl scale statefulset sensor-store -n s1 --replicas=4
+kubectl -n argocd patch application s1 --type merge -p '{"spec":{"syncPolicy":{"automated":{"selfHeal":true}}}}'
+```
+Remove from the ring **first**, then scale down. Removing restores exactly the original placement (the ring is deterministic). The version goes up once more.
+
+If asked why self-heal was paused: *"Git says 4 Sensor Store replicas. For the demo I paused ArgoCD's auto-revert on the app, otherwise it would remove the 5th node. A permanent change would be a Git commit."*
 
 ---
 
