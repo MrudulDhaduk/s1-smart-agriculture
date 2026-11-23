@@ -47,7 +47,7 @@ kubectl logs -n s1 job/k6-pm-write --tail=20
 
 # ---- Grafana (then Web Preview > Change port > 3000 > admin/admin) ---------------------------
 kubectl -n argocd patch application monitoring --type merge -p '{"spec":{"syncPolicy":{"automated":{"selfHeal":false}}}}'
-kubectl set env deploy/monitoring-grafana -n monitoring -c grafana GF_SECURITY_CSRF_TRUSTED_ORIGINS="3000-$WEB_HOST"
+kubectl set env deploy/monitoring-grafana -n monitoring -c grafana GF_SECURITY_CSRF_TRUSTED_ORIGINS=3000-$WEB_HOST
 kubectl rollout status deploy/monitoring-grafana -n monitoring && kubectl port-forward -n monitoring svc/monitoring-grafana 3000:3000
 
 # ---- After the demo -------------------------------------------------------------------------
