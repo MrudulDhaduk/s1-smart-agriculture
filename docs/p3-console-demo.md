@@ -303,12 +303,15 @@ kubectl -n argocd patch application monitoring --type merge -p '{"spec":{"syncPo
 ```bash
 kubectl port-forward -n monitoring svc/monitoring-grafana 3000:3000
 ```
-3. Cloud Shell toolbar → **Web Preview** (eye icon) → **Change port** → `3000` → **Change and preview**. A new tab opens. Copy its **hostname** (between `https://` and the first `/`).
-4. Back in Cloud Shell press **Ctrl+C**, then (with your hostname):
+3. Press **Ctrl+C**. Trust Cloud Shell's preview address (Cloud Shell keeps it in `$WEB_HOST`; check with `echo "3000-$WEB_HOST"`. If that prints only `3000-`, copy the hostname from the preview tab's address bar instead):
 ```bash
-kubectl set env deploy/monitoring-grafana -n monitoring -c grafana GF_SECURITY_CSRF_TRUSTED_ORIGINS=<hostname>
+kubectl set env deploy/monitoring-grafana -n monitoring -c grafana GF_SECURITY_CSRF_TRUSTED_ORIGINS="3000-$WEB_HOST"
+```
+4. Wait for the new Grafana pod and reopen the tunnel, then **Web Preview** (eye icon) → **Change port** → `3000`:
+```bash
 kubectl rollout status deploy/monitoring-grafana -n monitoring && kubectl port-forward -n monitoring svc/monitoring-grafana 3000:3000
 ```
+"**origin not allowed**" at login = step 3 didn't match the address. Not a wrong password.
 5. Refresh the preview tab → log in **`admin` / `admin`** → ☰ **Dashboards** → **S1 Smart Agriculture: partitioning and scaling** → time range (top right) **Last 30 minutes**, refresh **10s**.
 
 Why step 4: Grafana refuses logins from an unknown web address. Cloud Shell's preview address is unknown to it, so we tell Grafana to trust it.
