@@ -22,7 +22,7 @@ spec:
           image: s1/irrigation-controller:latest
           imagePullPolicy: IfNotPresent
           env:
-            - { name: EVAL_INTERVAL_S, value: "45" }
+            - { name: EVAL_INTERVAL_S, value: "50" }
           ports:
             - { name: http, containerPort: 8080 }
             - { name: metrics, containerPort: 8000 }
